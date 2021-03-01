@@ -1,0 +1,76 @@
+\documentclass{TREX}
+\usepackage{minted}
+\usepackage{longtable}
+
+
+
+%------
+% TODO : Fill in this information
+
+% Work package number
+\newcommand{\WorkPackage}{1}
+
+% Work package title
+\newcommand{\WorkPackageTitle}{Standard API for QMC kernels and implementation}
+
+% Deliverable number
+\newcommand{\DelID}{1}
+
+% Title of the Deliverable
+\newcommand{\DelTitle}{Software design and implementation of QMCkl}
+
+% Due date
+\newcommand{\DueDate}{M06 -- 31-03-2021 (from GA)}
+
+% Actual submission date
+\newcommand{\SubDate}{21-12-2020}
+
+% Main author (Leader)
+\newcommand{\LeadAuthor}{Anthony Scemama (LCPQ)}
+
+% Contributing authors
+\newcommand{\Contributors}{Contributor (Institution), Contributor (Institution)}
+
+% Reviewers
+\newcommand{\Reviewers}{Reviewer (Institution), Reviewer (Institution)}
+
+% Deliverable version
+\newcommand{\DelVersion}{X.0}
+
+% Draft or final version?
+\newcommand{\DraftOrFinal}{Draft}
+
+%------
+
+\newcommand{\DelNumber}{D\WorkPackage.\DelID}
+
+
+\title{\DelNumber{} -- \DelTitle}
+\author{\LeadAuthor}
+
+
+\begin{document}
+
+\input{01-title}
+\input{02-info}
+\input{03-versioning}
+\input{04-abbreviations}
+
+\tableofcontents
+\clearpage
+\listoffigures
+\clearpage
+\listoftables  
+\clearpage
+
+\input{05-content}
+
+\bibliography{references}
+
+\appendix
+\input{appendix.tex}
+
+
+\end{document}
+
+
