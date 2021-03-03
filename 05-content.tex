@@ -1,9 +1,245 @@
+\newcommand{\orgmode}{\texttt{org mode}}
+\newcommand{\Makefile}{\mintinline{shell}{Makefile}}
+\newcommand{\context}{\mintinline{shell}{context}}
+\newcommand{\CC}{C\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\tiny\bf +}\nolinebreak\hspace{-.10em}\raisebox{.4ex}{\tiny\bf +}}
+\def\CC{{C\nolinebreak[4]\hspace{-.05em}\raisebox{.4ex}{\tiny\bf ++}}}
+
 \section{Introduction}
 
 
-\subsection{License}
+The ultimate goal of \ac{QMCkl} is to provide a high-performance
+implementation of the main kernels of \ac{QMC}. In this particular
+\ac{WP}, we focus on the definition of the \ac{API}, the tests,
+and on a \emph{pedagogical} presentation of the algorithms.  We expect
+the \ac{HPC} experts to use this repository as a reference for re-writing
+optimized versions of the library.
+
+\subsection{Literate programming}
+
+Literate programming\cite{knuth_1992} is particularly well adapted in this
+context, as it enforces the developers of the library to keep the
+documentation consistent with the code.  We have chosen to write the
+source files in {\orgmode} format,\cite{schulte_2012}
+as any text editor can be used to edit {\orgmode} files.
+
+To
+produce the documentation, there exists multiple possibilities to
+convert {\orgmode} files into different formats such as
+\ac{HTML} or \ac{PDF}. The source code is easily extracted from the org
+files invoking the Emacs text editor from the command-line in the
+{\Makefile}, and then the produced files are compiled.
+
+\section{Source code}
+
+\subsection{Choice of the programming language}
+
+Most of the codes of the \ac{CoE} are written in Fortran, with some
+scripts in Python. Outside of the \ac{CoE}, other important languages
+used by the community are C and {\CC}, and Julia is gaining in
+popularity. The library we design should be compatible with all of
+these languages, hence the \ac{API} of \ac{QMCkl} has to be compatible
+with C.
+
+High-performance versions of the \ac{QMCkl}, with the same \ac{API},
+will be rewritten in \ac{WP}~3 by the experts in \ac{HPC}. These
+optimized libraries will be tuned for specific architectures, among
+which we can cite x86 based processors, and \ac{GPU} accelerators.
+Nowadays, the most efficient software tools to take advantage of
+low-level features of the processor (intrinsics) and of \acp{GPU} are
+for {\CC} developers. It is highly probable that the optimized
+implementations will be written in {\CC}, and this is agreement with our
+choice to make the \ac{API} C-compatible.
+
+
+Fortran is one of the most common languages used by the community, and
+is simple enough to make the algorithms readable both by experts in
+\ac{QMC}, and experts in \ac{HPC}. Hence we propose in this
+pedagogical implementation of \ac{QMCkl} to use Fortran to express the
+QMC algorithms. As the main languages of the library is C, this
+implies that the exposed C functions call the Fortran routine.
+However, for internal functions related to system programming, the C
+language is more natural than Fortran.
+
+The  Fortran  source  files  should provide  a  C  interface  using the
+\mintinline{Fortran}{iso_c_binding} module. The name of the Fortran source files
+should end with \mintinline{shell}{_f.f90} to be properly handled by the
+{\Makefile}.  The names of the functions defined in Fortran should be the
+same as those exposed in the \ac{API} suffixed by \mintinline{shell}{_f}.
+Fortran interfaces should also be written in the
+\mintinline{shell}{qmckl_f.f90} file.
+
+% \subsection{Coding style}
+% To improve  readability, we maintain  a consistent coding  style in
+% the library.
+
+% \begin{itemize}
+% \item For C source files, we will use \uline{\uline{(decide on a coding style)}}
+% \item For  Fortran source  files, we  will  use \uline{\uline{(decide  on a  coding
+% style)}}
+% \end{itemize}
+
+% Coding style can be automatically checked with \href{https://clang.llvm.org/docs/ClangFormat.html}{clang-format}.
+
+\section{Design of the library}
+
+The proposed \ac{API} should allow the library to deal with memory
+transfers between CPU and accelerators, and to use dynamically
+different levels of floating-point precision.  We chose a
+multi-layered design with low-level and high-level functions (see
+below).
+
+\subsubsection{Naming conventions}
+
+To avoid namespace collisions, we use \mintinline{C}{qmckl_} as a prefix for
+all exported functions and variables.  All exported header files
+should have a file name prefixed with \mintinline{shell}{qmckl_}.
+
+For instance, if the name of the {\orgmode} file is
+\mintinline{shell}{xxx.org}, the name of the produced C files should
+be \mintinline{shell}{xxx.c} and \mintinline{shell}{xxx.h} and the
+name of the produced Fortran file should be
+\mintinline{shell}{xxx.f90}
+
+Arrays are in uppercase and scalars are in lowercase.
+
+In the  names of  the variables and  functions, only the singular
+form is allowed.
+
+\subsubsection{Application programming interface}
+
+In the C language, the number of bits used by the integer types can
+change from one architecture to another one. To circumvent this
+problem, we choose to use the integer types defined in
+\mintinline{C}{<stdint.h>} where the number of bits used for the
+integers are fixed.
+
+To ensure that the library will be easily usable in \emph{any} other
+language than C, we restrict the data types in the interfaces to the
+following:
+\begin{itemize}
+\item 32-bit and 64-bit integers, scalars and and arrays
+  (\mintinline{C}{int32_t} and \mintinline{C}{int64_t})
+\item 32-bit and 64-bit floats, scalars and and arrays
+  (\mintinline{C}{float} and \mintinline{C}{double})
+\item Pointers are always casted into 64-bit integers, even on legacy 32-bit architectures)
+\item ASCII strings are represented as a pointers to character arrays
+  and terminated by a zero character (C convention).
+\item Complex numbers can be represented by an array of 2 floats.
+\item Boolean variables are stored as integers, \mintinline{C}{1} for \mintinline{C}{true}
+and \mintinline{C}{0} for \mintinline{C}{false}
+\end{itemize}
+
+To facilitate the  use in other languages than C,  we provide some
+bindings in other languages in other repositories.
+
+\subsubsection{Global state}
+
+Global variables should  be avoided in the library,  because it is
+possible that one  single program needs to  use multiple instances
+of the library. To solve this  problem we propose to use a pointer
+to a {\context}  variable,  built   by  the  library   with  the
+\mintinline{C}{qmckl_context_create} function. The
+{\context} contains the global state of the library, and is used as
+the first argument of many \ac{QMCkl} functions.
+
+The internal structure of the {\context}  is not specified, to give a
+maximum of  freedom to  the different  implementations.  Modifying
+the  state   is  done   by  setter   and  getter functions,   prefixed  by
+\mintinline{C}{qmckl_context_set_}  an
+\mintinline{C}{qmckl_context_get_}.
+When a {\context} variable is modified by a setter, a copy of the old
+data structure is made and updated, and the pointer to the new data
+structure is returned, such that the old contexts can still be
+accessed.  It is also possible to modify the state in an mutable
+fashion, using the \mintinline{C}{qmckl_context_update_} functions.
+The {\context} and its old versions can be destroyed with
+\mintinline{C}{qmckl_context_destroy}.
+
+\subsubsection{Low-level functions}
+
+Low-level functions are very simple  functions which are leaves of
+the function call tree (they don't call any other \ac{QMCkl} function).
+
+These  functions   are   \emph{pure},   and  unaware   of   the   \ac{QMCkl}
+{\context}. They are not allowed to allocate/deallocate memory, and
+if they need temporary memory it should be provided in input.
+
+\subsubsection{High-level functions}
+
+High-level functions  are at  the top of  the function  call tree.
+They  are  able  to  choose which  lower-level  function  to  call
+depending on the required precision, and do the corresponding type
+conversions.  These functions are  also responsible for allocating
+temporary storage, to simplify the use of accelerators.
+
+The high-level  functions should be pure,  unless the introduction
+of non-purity is justified. All the side effects should be made in
+the \texttt{context} variable.
+
+\subsubsection{Numerical precision}
+
+The number of bits of precision  required for a function should be
+given as an input of low-level computational functions. This input
+will be used to define the values of the different thresholds that
+might be  used to  avoid computing unnecessary  noise.  High-level
+functions  will  use  the  precision specified  in  the  \texttt{context}
+variable.
+
+\subsection{Algorithms}
+
+Reducing the scaling of an  algorithm usually implies also reducing
+its arithmetic  complexity (number  of flops per  byte). Therefore,
+for  small  sizes   \(\mathcal{O}(N^3)\)  and  \(\mathcal{O}(N^2)\)
+algorithms are  better adapted than linear  scaling algorithms.  As
+\ac{QMCkl} is a  general purpose library, multiple  algorithms should be
+implemented adapted to different problem sizes.
+
+\subsection{Rules for the API}
+
+\begin{itemize}
+\item \texttt{stdint} should be used for integers (\texttt{int32\_t}, \texttt{int64\_t})
+\item integers used for counting should always be \texttt{int64\_t}
+\item floats should be by default \texttt{double}, unless explicitly mentioned
+\item pointers are converted to \texttt{int64\_t} to increase portability
+\end{itemize}
+
+\section{Continuous integration}
+
+Continuous integration has been setup on the GitHub platform. Upon
+pull request, the repository is automatically cloned on a virtual
+machine. The source code is then extracted from the {\orgmode}
+files and the library is compiled. Then the unit tests are compiled
+and linked together with the library. If all the tests pass, the
+pull request is considered valid, and can be merged.
+
+When the code is updated, the documentation is automatically built and
+the server hosting the documentation is updated, such that the web
+site containing the
+documentation\footnote{\url{trex-coe.github.io/qmckl/index.html}}
+is always synchronized with the latest version of the master branch of
+the GitHub repository.
+
+\section{Dependencies}
+
+Dependencies are critical: if a user is not able to install the
+required dependencies, the user is not going to be able to use our
+library, and solving the problem is out of our control. So the list of
+external dependencies should be kept as small as possible. 
+External libraries should be used \emph{only} if their use is
+strongly justified, and if we are sure that the users will be able to
+have access to them.
+
+The dependencies needed to use pre-compiled versions of the library
+are \ac{BLAS} and \ac{LAPACK}.
+
+The dependencies needed to compile the code are
+a C and a Fortran compiler, GNU make, \ac{BLAS} and \ac{LAPACK}, and
+$\mu$nit\cite{munit} for building the unit tests.
+
+The dependencies needed to create the \ac{HTML} documentation are
+Emacs~26 and the package Emacs-htmlize.
+
+\section{License}
 
 The library is licensed under the open-source 3-clause BSD license to facilitate
 its adoption in all quantum chemistry software, commercial or not.
-
-\
