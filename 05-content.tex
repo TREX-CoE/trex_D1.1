@@ -273,13 +273,13 @@ library.
 The first kernel we have been working on is the three-body component of
 the Jastrow factor, which is one of the potential bottlenecks of
 extreme-scale calculations that will run on exascale machines.
-It is expressed as
+In the CHAMP program, it is expressed as
 
 \newcommand{\Jeen}{J_{\text{een}}}
 \newcommand{\Nel}{N_{\text{elec}}}
 \newcommand{\Nat}{N_{\text{nucl}}}
 \newcommand{\Nord}{N_{\text{nord}}}
-\newcommand{\lmax}{l_{\text{max}}}
+\newcommand{\lmax}{p-k-2\delta_{k,0}}
 \newcommand{\br}{\mathbf{r}}
 \newcommand{\bR}{\mathbf{R}}
 \[
@@ -296,7 +296,6 @@ $\Nat$ is the number of nuclei,
 $\Nord$ is the maximum order of the poynomial, 
 $\br$ contains rescaled electron-electron distances, 
 $\bR$ contains rescaled electron-nucleus distances,
-$\lmax=p-k-2\delta_{k,0}$,
 and $c_{lkp\alpha}$ are the variational parameters which are non-zero
 only when $p-k-l$ is even.
 
@@ -308,6 +307,43 @@ geometry optimization the first derivatives with respect to $\bR$ are
 also required. To compute these derivatives, multiple intermediates
 will be common and we need to identify them such that the same
 intermediates can be reused for several derivatives.
+
+The mini-application, available on
+GitHub\footnote{https://github.com/trex-coe/irpjast} has allowed us to
+rewrite the expression in a way allowing us to take advantage of BLAS3
+matrix multiplication. The expression is now expressed in terms of
+rank-3 and rank-4 tensors \newcommand{\tr}{\mathtt{r}}
+\newcommand{\tR}{\mathtt{R}}
+\newcommand{\tP}{\mathtt{P}}
+\[
+  \Jeen(\br,\bR) = 
+  \sum_{p=2}^{\Nord}\sum_{k=0}^{p-1}
+  \sum_{l=0}^{\lmax} \left(
+    \sum_{i=1}^{\Nel}\sum_{\alpha=1}^{\Nat}
+    c_{lkp\alpha}\, {\tR}_{i,\alpha\,l}\,
+  {\tP}_{i,\alpha,k,l+m}
+  \right)
+  \]
+with 
+  \[
+  {\tP}_{i, \alpha, k, l+m} = \sum_{j=1}^{\Nel} {\tr}_{i,j,k}\,{\tR}_{j,\alpha,l+m}
+  \]
+
+This rewriting allowed us to move the computationally intensive part in
+$\mathcal{O}(\Nat{\Nel}^2)$ into a BLAS3 matrix multiplication, the
+remaining part being in $\mathcal{O}(\Nat \Nel)$.
+\begin{figure}
+  \begin{center}
+  \includegraphics[width=0.5\textwidth]{speedup.png}
+  \end{center}
+  \caption{\label{fig:speedup}Speed up obained after the re-expression of the three-body
+    Jastrow factor.}
+\end{figure}
+The speed up is presented in figure~\ref{fig:speedup}. Further
+optimizations will be made on the $\mathcal{O}(\Nat \Nel)$ part before
+the kernel will be implemented in \ac{QMCkl}.
+The same strategy for kernel extraction of the codes will be applied
+to all other possible computational bottlenecks.
 
 
 \section{License}
