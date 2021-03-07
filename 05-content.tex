@@ -19,6 +19,7 @@ The documentation of the current status of the library is available
 at \url{https://trex-coe.github.io/qmckl}, and the source code is
 available on the GitHub repository at \url{https://github.com/trex-coe/qmckl}.
 
+
 \subsection{Literate programming}
 
 In a traditional source code, most of the lines of source files of a
@@ -51,7 +52,7 @@ format,\cite{schulte_2012} as any text editor can be used to edit
 {\orgmode} files. To produce the documentation, there exists multiple
 possibilities to convert {\orgmode} files into different formats such
 as \ac{HTML} or \ac{PDF}. The source code is easily extracted from the
-org files invoking the Emacs text editor from the command-line in the
+{\orgmode} files invoking the Emacs text editor from the command-line in the
 {\Makefile}, and then the produced files are compiled.
 Moreover, within the Emacs text editor the source code blocks can be
 executed interactively, in the same spirit as Jupyter notebooks.\cite{Kluyver_2016}
@@ -60,13 +61,13 @@ executed interactively, in the same spirit as Jupyter notebooks.\cite{Kluyver_20
 
 \subsection{Choice of the programming language}
 
-Most of the codes of the \ac{CoE} are written in Fortran
+Most of the codes of the \ac{TREX} \ac{CoE} are written in Fortran
 with some scripts in Bash and Python. Outside of the
 \ac{CoE}, Fortran is also important (Casino, Amolqc), and other
 important languages used by the community are C and {\CC} (QMCPack,
 QWalk), and Julia is gaining in popularity.\cite{poole_2020} The
-library we design should be compatible with all of these languages,
-hence the \ac{QMCkl} \ac{API} has to be compatible with the C language
+library we design should be compatible with all of these languages.
+The \ac{QMCkl} \ac{API} has to be compatible with the C language
 since libraries with a C-compatible \ac{API} can be used in every
 other language.
 
@@ -79,7 +80,6 @@ low-level features of the processor (intrinsics) and of \acp{GPU} are
 for {\CC} developers. It is highly probable that the optimized
 implementations will be written in {\CC}, and this is agreement with our
 choice to make the \ac{API} C-compatible.
-
 
 Fortran is one of the most common languages used by the community, and
 is simple enough to make the algorithms readable both by experts in
@@ -139,7 +139,7 @@ following:
   (\mintinline{C}{int32_t} and \mintinline{C}{int64_t})
 \item 32-bit and 64-bit floats, scalars and and arrays
   (\mintinline{C}{float} and \mintinline{C}{double})
-\item Pointers are always casted into 64-bit integers, even on legacy 32-bit architectures)
+\item Pointers are always casted into 64-bit integers, even on legacy 32-bit architectures
 \item ASCII strings are represented as a pointers to character arrays
   and terminated by a zero character (C convention).
 \item Complex numbers can be represented by an array of 2 floats.
@@ -220,19 +220,100 @@ implemented adapted to different problem sizes.
 
 
 
-\section{Continuous integration}
+\section{Documentation of the API}
 
-Continuous integration has been setup on the GitHub platform. Upon
-pull request, the repository is automatically cloned on a virtual
-machine. The source code is then extracted from the {\orgmode}
-files and the library is compiled. Then the unit tests are compiled
-and linked together with the library. If all the tests pass, the
-pull request is considered valid, and can be merged.
+In this section, we include the documentation of the library which is
+automatically generated from the {\orgmode} files, in the current status.
+The library is still at an early development stage. Up to now most of
+the effort was made on preparing solid bases for the development of
+the library, more related to system programming than scientific
+programming (the context variable, memory allocation, conventions,
+Makefiles, generation of the documentation, \textit{etc}). The actual
+implementation of the kernels is in progress, and we refer the
+reaer to section~\ref{sec:codesign} for more detail on our strategy.
 
-When the code is updated, the documentation is automatically built and
-the server hosting the documentation is updated, such that the web
-site containing the documentation is always synchronized with the
-latest version of the master branch of the GitHub repository.
+% TODO : include here documentation
+
+\section{Co-design}
+\label{sec:codesign}
+
+Research codes are developed over a long period of time by multiple
+researchers, Ph.D students and post-docs. The professional evaluation
+of these people is based on their scientific production and not on the
+quality of the software they write, so code quality and refactoring is
+often left in the low-priority tasks. As a consequence, old research
+codes often depend on some choices made at an immature stage of the
+program, and solutions to bypass these wrong choices make the code
+complicated to understand for external people, especially if they are
+not familiar with the domain.
+
+\subsection{Kernel extraction}
+
+The strategy we have chosen to extract the kernels of the codes is to
+first discuss among the developers of \ac{QMC} codes how they have
+implemented a particular kernel. Once the developers have agreed on
+which algorithm is best, they first formulate the algorithm in terms
+of mathematical expressions in a {\LaTeX} file, and they create a prototype application 
+(the \emph{mini-application}) implementing \emph{only} the kernel of
+interest. This mini-application can be easily compiled and executed,
+and is considered valid when it reproduces exactly the values obtained
+with the kernel present in the original \ac{QMC} code.
+
+The mini-app is then thoroughy modified in discussion with the
+\ac{HPC} experts of \ac{WP}3 until the optimal data strtuctures are
+determined. This step is crucial to facilitate the access to performance
+in the \ac{HPC} versions of the library that will be developed in \ac{WP}3.
+Once the \ac{QMC} and \ac{HPC} specialists have agreed
+on the data structures, the kernel is ready to be implemented in the
+library.
+
+
+\subsection{A concrete example}
+
+The first kernel we have been working on is the three-body component of
+the Jastrow factor, which is one of the potential bottlenecks of
+extreme-scale calculations that will run on exascale machines.
+It is expressed as
+
+\newcommand{\Jeen}{J_{\text{een}}}
+\newcommand{\Nel}{N_{\text{elec}}}
+\newcommand{\Nat}{N_{\text{nucl}}}
+\newcommand{\Nord}{N_{\text{nord}}}
+\newcommand{\lmax}{l_{\text{max}}}
+\newcommand{\br}{\mathbf{r}}
+\newcommand{\bR}{\mathbf{R}}
+\[
+  \Jeen (\br,\bR) = \sum_{\alpha=1}^{\Nat} \sum_{i=1}^{\Nel} \sum_{j=1}^{i-1}
+\sum_{p=2}^{\Nord} \sum_{k=0}^{p-1}
+\sum_{l=0}^{\lmax} c_{lkp\alpha}
+\left( {r}_{ij} \right)^k
+\left[ \left( {R}_{i\alpha} \right)^l + \left( {R}_{j\alpha} \right)^l \right]
+\left( {R}_{i\,\alpha} \, {R}_{j\alpha} \right)^{(p-k-l)/2} 
+\]
+where
+$\Nel$ is the number of electrons, 
+$\Nat$ is the number of nuclei,
+$\Nord$ is the maximum order of the poynomial, 
+$\br$ contains rescaled electron-electron distances, 
+$\bR$ contains rescaled electron-nucleus distances,
+$\lmax=p-k-2\delta_{k,0}$,
+and $c_{lkp\alpha}$ are the variational parameters which are non-zero
+only when $p-k-l$ is even.
+
+For \ac{QMC} simulations, the first and second derivatives of $\Jeen$ with
+respect to the electron coordinates are also required. To optimize the
+parameters, the derivative with respect to $c_{lkp\alpha}$
+should also be available, and in the context of molecular dynamics or
+geometry optimization the first derivatives with respect to $\bR$ are
+also required. To compute these derivatives, multiple intermediates
+will be common and we need to identify them such that the same
+intermediates can be reused for several derivatives.
+
+
+\section{License}
+
+The library is licensed under the open-source 3-clause BSD license to facilitate
+its adoption in all quantum chemistry software, commercial or not.
 
 \section{Dependencies}
 
@@ -254,11 +335,17 @@ $\mu$nit\cite{munit} for building the unit tests.
 The dependencies needed to create the \ac{HTML} documentation are
 Emacs~26 and the package Emacs-htmlize.
 
-\section{Documentation of the API}
 
+\section{Continuous integration}
 
+Continuous integration has been setup on the GitHub platform. Upon
+pull request, the repository is automatically cloned on a virtual
+machine. The source code is then extracted from the {\orgmode}
+files and the library is compiled. Then the unit tests are compiled
+and linked together with the library. If all the tests pass, the
+pull request is considered valid, and can be merged.
 
-\section{License}
-
-The library is licensed under the open-source 3-clause BSD license to facilitate
-its adoption in all quantum chemistry software, commercial or not.
+When the code is updated, the documentation is automatically built and
+the server hosting the documentation is updated, such that the web
+site containing the documentation is always synchronized with the
+latest version of the master branch of the GitHub repository.
