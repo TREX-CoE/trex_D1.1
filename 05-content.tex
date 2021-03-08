@@ -293,7 +293,7 @@ In the CHAMP program, it is expressed as
 where
 $\Nel$ is the number of electrons, 
 $\Nat$ is the number of nuclei,
-$\Nord$ is the maximum order of the poynomial, 
+$\Nord$ is the maximum order of the polynomial, 
 $\br$ contains rescaled electron-electron distances, 
 $\bR$ contains rescaled electron-nucleus distances,
 and $c_{lkp\alpha}$ are the variational parameters which are non-zero
@@ -318,28 +318,28 @@ rank-3 and rank-4 tensors \newcommand{\tr}{\mathtt{r}}
 \[
   \Jeen(\br,\bR) = 
   \sum_{p=2}^{\Nord}\sum_{k=0}^{p-1}
-  \sum_{l=0}^{\lmax} \left(
-    \sum_{i=1}^{\Nel}\sum_{\alpha=1}^{\Nat}
+  \sum_{l=0}^{\lmax} 
+    \sum_{\alpha=1}^{\Nat}
+    \sum_{i=1}^{\Nel}
     c_{lkp\alpha}\, {\tR}_{i,\alpha\,l}\,
-  {\tP}_{i,\alpha,k,l+m}
-  \right)
+  {\tP}_{i,\alpha,k,(p-k+l)/2}
   \]
 with 
   \[
-  {\tP}_{i, \alpha, k, l+m} = \sum_{j=1}^{\Nel} {\tr}_{i,j,k}\,{\tR}_{j,\alpha,l+m}
+  {\tP}_{i, \alpha, k, l} = \sum_{j=1}^{\Nel} {\tr}_{i,j,k}\,{\tR}_{j,\alpha,l}
   \]
-
+  
 This rewriting allowed us to move the computationally intensive part in
 $\mathcal{O}(\Nat{\Nel}^2)$ into a BLAS3 matrix multiplication, the
 remaining part being in $\mathcal{O}(\Nat \Nel)$.
-\begin{figure}
+\begin{figure}[t]
   \begin{center}
-  \includegraphics[width=0.5\textwidth]{speedup.png}
+  \includegraphics[width=0.75\textwidth]{speedup.pdf}
   \end{center}
-  \caption{\label{fig:speedup}Speed up obained after the re-expression of the three-body
+  \caption{\label{fig:speedup}Speedup obained after the re-expression of the three-body
     Jastrow factor.}
 \end{figure}
-The speed up is presented in figure~\ref{fig:speedup}. Further
+The speedup is presented in figure~\ref{fig:speedup}. Further
 optimizations will be made on the $\mathcal{O}(\Nat \Nel)$ part before
 the kernel will be implemented in \ac{QMCkl}.
 The same strategy for kernel extraction of the codes will be applied
