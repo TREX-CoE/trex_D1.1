@@ -220,21 +220,7 @@ implemented adapted to different problem sizes.
 
 
 
-\section{Documentation of the API}
-
-In this section, we include the documentation of the library which is
-automatically generated from the {\orgmode} files, in the current status.
-The library is still at an early development stage. Up to now most of
-the effort was made on preparing solid bases for the development of
-the library, more related to system programming than scientific
-programming (the context variable, memory allocation, conventions,
-Makefiles, generation of the documentation, \textit{etc}). The actual
-implementation of the kernels is in progress, and we refer the
-reaer to section~\ref{sec:codesign} for more detail on our strategy.
-
-% TODO : include here documentation
-
-\section{Co-design}
+\section{Codesign}
 \label{sec:codesign}
 
 Research codes are developed over a long period of time by multiple
@@ -309,29 +295,70 @@ will be common and we need to identify them such that the same
 intermediates can be reused for several derivatives.
 
 The mini-application, available on
-GitHub\footnote{https://github.com/trex-coe/irpjast} has allowed us to
+GitHub\footnote{\url{https://github.com/trex-coe/irpjast}} has allowed us to
 rewrite the expression in a way allowing us to take advantage of BLAS3
 matrix multiplication. The expression is now expressed in terms of
-rank-3 and rank-4 tensors \newcommand{\tr}{\mathtt{r}}
-\newcommand{\tR}{\mathtt{R}}
-\newcommand{\tP}{\mathtt{P}}
+rank-3 and rank-4 tensors
+\newcommand{\tr}{\, \bar{\mathtt{r}}}
+\newcommand{\tR}{\, \bar{\mathtt{R}}}
+\newcommand{\tP}{\, \bar{\mathtt{P}}}
 \[
   \Jeen(\br,\bR) = 
   \sum_{p=2}^{\Nord}\sum_{k=0}^{p-1}
   \sum_{l=0}^{\lmax} 
     \sum_{\alpha=1}^{\Nat}
+    c_{lkp\alpha}
     \sum_{i=1}^{\Nel}
-    c_{lkp\alpha}\, {\tR}_{i,\alpha\,l}\,
+    {\tR}_{i,\alpha,(p-k-l)/2}\,
   {\tP}_{i,\alpha,k,(p-k+l)/2}
   \]
 with 
   \[
-  {\tP}_{i, \alpha, k, l} = \sum_{j=1}^{\Nel} {\tr}_{i,j,k}\,{\tR}_{j,\alpha,l}
+  {\tP}_{i, \alpha, k, l} = \sum_{j=1}^{\Nel} {\tr}_{i,j,k}\,{\tR}_{j,\alpha,l}.
   \]
   
-This rewriting allowed us to move the computationally intensive part in
-$\mathcal{O}(\Nat{\Nel}^2)$ into a BLAS3 matrix multiplication, the
-remaining part being in $\mathcal{O}(\Nat \Nel)$.
+Similarly, the gradient with respect to electron coordinates and the
+Laplacian require an additional intermediate and reuses ${\tP}$. As
+the gradient ($\nabla_{i}$) and the Laplacian ($\Delta_i$) have part
+of their formula in common, the $3\Nel$ components of the gradient and
+the $\Nel$ components of the Laplacian are stored in the same tensor,
+adding an extra index $m=(1,2,3)$ for $\nabla_x, \nabla_y,\nabla_z$
+and $m=4$ for $\Delta$.
+
+\newcommand{\tg}{\, \bar{\mathtt{g}}}
+\newcommand{\tG}{\, \bar{\mathtt{G}}}
+\newcommand{\tQ}{\, \bar{\mathtt{Q}}}
+
+\begin{eqnarray*}
+  \nabla_{im} \Jeen(\br,\bR) & = &
+  \sum_{p=2}^{\Nord}\sum_{k=0}^{p-1}
+  \sum_{l=0}^{\lmax} 
+    \sum_{\alpha=1}^{\Nat}
+    c_{lkp\alpha}
+    \sum_{i=1}^{\Nel} 
+     {\tG}_{i,m,\alpha,(p-k-l)/2} {\tP}_{i,\alpha,k,(p-k+l)/2} +  \\
+&&   {\tG}_{i,m,\alpha,(p-k+l)/2} {\tP}_{i,\alpha,k,(p-k-l)/2} + 
+     {\tR}_{i,\alpha,(p-k-l)/2} {\tQ}_{i,m,\alpha,k,(p-k+l)/2} + \\
+&&   {\tR}_{i,\alpha,(p-k+l)/2} {\tQ}_{i,m,\alpha,k,(p-k-l)/2} + 
+    \delta_{m,4} \big( \\
+&&     {\tG}_{i,1,\alpha,(p-k+l)/2} {\tQ}_{i,1,\alpha,k,(p-k-l)/2} +
+       {\tG}_{i,2,\alpha,(p-k+l)/2} {\tQ}_{i,2,\alpha,k,(p-k-l)/2} + \\
+&&     {\tG}_{i,3,\alpha,(p-k+l)/2} {\tQ}_{i,3,\alpha,k,(p-k-l)/2} +
+       {\tG}_{i,1,\alpha,(p-k-l)/2} {\tQ}_{i,1,\alpha,k,(p-k+l)/2} + \\
+&&     {\tG}_{i,2,\alpha,(p-k-l)/2} {\tQ}_{i,2,\alpha,k,(p-k+l)/2} + 
+       {\tG}_{i,3,\alpha,(p-k-l)/2} {\tQ}_{i,3,\alpha,k,(p-k+l)/2} \big)
+\end{eqnarray*}
+with 
+\[
+  {\tG}_{i, m, \alpha, l}  =  \frac{\partial \left( {R}_{i\alpha} \right)^l}
+                             {\partial r_i},  \phantom{ space }
+  {\tg}_{i, m, j, k}  =  \frac{\partial \left( {r}_{ij} \right)^k}
+                             {\partial r_i}, \phantom{ space }
+                             \text{ and } 
+  {\tQ}_{i, m, \alpha, k, l}  =  \sum_{j=1}^{\Nel}
+                            {\tg}_{i,m,j,k}\,{\tR}_{j,\alpha,l} 
+\]
+  
 \begin{figure}[t]
   \begin{center}
   \includegraphics[width=0.75\textwidth]{speedup.pdf}
@@ -339,11 +366,23 @@ remaining part being in $\mathcal{O}(\Nat \Nel)$.
   \caption{\label{fig:speedup}Speedup obained after the re-expression of the three-body
     Jastrow factor.}
 \end{figure}
-The speedup is presented in figure~\ref{fig:speedup}. Further
-optimizations will be made on the $\mathcal{O}(\Nat \Nel)$ part before
-the kernel will be implemented in \ac{QMCkl}.
-The same strategy for kernel extraction of the codes will be applied
-to all other possible computational bottlenecks.
+
+This rewriting allowed us to move the computationally intensive part in
+$\mathcal{O}(\Nat{\Nel}^2)$ into a BLAS3 matrix multiplication, the
+remaining part being in $\mathcal{O}(\Nat \Nel)$.
+The performance of the computation of the value, gradient and Laplacian of
+the three-body Jastrow factor was measured on an Intel(R) Xeon(R) Gold
+6130 processor, and the code was compiled with the Intel Fortran
+compiler version 2021.1 with options
+\mintinline{bash}{-O3 -xCORE-AVX512 -g -mkl=sequential -qopt-zmm-usage=high}.
+The speedup with respect to the unoptimized kernel is presented in
+figure~\ref{fig:speedup}, and reaches a factor of $19\times$ for the
+largest system sizes. Performance analyzis of the mini-application
+showed that we have reached 80\% of the single core peak performance
+of the CPU core for this kernel.
+
+The same strategy for kernel extraction of the codes and rewriting
+will be applied to all other possible computational bottlenecks.
 
 
 \section{License}
@@ -385,3 +424,27 @@ When the code is updated, the documentation is automatically built and
 the server hosting the documentation is updated, such that the web
 site containing the documentation is always synchronized with the
 latest version of the master branch of the GitHub repository.
+
+
+
+\appendix
+\section{Appendix: Documentation of the API}
+
+In this section, we include as an example part of the documentation of
+the library which is automatically generated from the {\orgmode}
+files, in the current status. The rest of the documentation can be
+found on the web site of the library\footnote{\url{https://trex-coe.github.io/qmckl}}.
+The library is still at an early development stage. Up to now most of
+the effort was made on preparing solid bases for the development of
+the library, more related to system programming than scientific
+programming (the context variable, memory allocation, conventions,
+Makefiles, generation of the documentation, \textit{etc}). The actual
+implementation of the kernels is in progress, and we refer the
+reaer to section~\ref{sec:codesign} for more detail on our strategy.
+
+
+\clearpage
+
+\input{qmckl_context}
+% TODO : include here documentation
+
