@@ -1,4 +1,4 @@
-\newcommand{\orgmode}{\texttt{org mode}}
+\newcommand{\orgmode}{\texttt{org-mode}}
 \newcommand{\Makefile}{\mintinline{shell}{Makefile}}
 \newcommand{\context}{\mintinline{shell}{context}}
 \newcommand{\CC}{C\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\tiny\bf +}\nolinebreak\hspace{-.10em}\raisebox{.4ex}{\tiny\bf +}}
@@ -22,11 +22,12 @@ available on the GitHub repository at \url{https://github.com/trex-coe/qmckl}.
 
 \subsection{Literate programming}
 
-In a traditional source code, most of the lines of source files of a
-program are code, scripts, {\Makefile}s, and only a few lines are
-comments explaining parts of the code that are non-trivial to
-understand. The documentation of the prorgam is usually written
-in a separate directory, and is often outdated compared to the code.
+In a traditional code, most of the lines of source files are code,
+scripts, {\Makefile}s, and only a few lines are comments explaining
+parts of the code that are non-trivial to understand. The
+documentation of the prorgam is usually written in a separate
+directory, and is often outdated with respect to the current version
+of the code.
 
 Literate programming\cite{knuth_1992} is a different approach to
 programming, where the program is considered as a publishable-quality
@@ -35,7 +36,7 @@ mathematical formulas, tables, figures, \textit{etc}, and the lines of
 code are just the translation in a computer language of the ideas
 and algorithms expressed in the text. More importantly, the ``document'' is
 structured like a text document with sections, subsections, a bibliography,
-a table of contents \textit{etc}, and the place where pieces of code
+a table of contents \textit{etc}. The place where pieces of code
 appear are the places where they should belong for the reader to
 understand the logic of the program, not the places where the compiler
 expects to find them. Both the publishable-quality document and the
@@ -48,14 +49,16 @@ of the algorithms in a language that can be compiled, so that the
 correctness of the algorithms can be tested.
 
 We have chosen to write the source files in {\orgmode}
-format,\cite{schulte_2012} as any text editor can be used to edit
-{\orgmode} files. To produce the documentation, there exists multiple
-possibilities to convert {\orgmode} files into different formats such
-as \ac{HTML} or \ac{PDF}. The source code is easily extracted from the
-{\orgmode} files invoking the Emacs text editor from the command-line in the
-{\Makefile}, and then the produced files are compiled.
-Moreover, within the Emacs text editor the source code blocks can be
-executed interactively, in the same spirit as Jupyter notebooks.\cite{Kluyver_2016}
+format,\cite{schulte_2012,orgmode} as any text editor can be used to
+edit {\orgmode} files. To produce the documentation, there exists
+multiple possibilities to convert {\orgmode} files into different
+formats such as \ac{HTML} or \ac{PDF}. The source code is easily
+extracted from the {\orgmode} files invoking the Emacs text editor
+from the command-line in the {\Makefile}, and then the produced files
+are compiled as usual.  Moreover, within the Emacs text editor the
+source code blocks can be executed interactively, as in Jupyter
+notebooks,\cite{Kluyver_2016} but with the advantage that multiple
+languages can be used in the same notebook.
 
 \section{Source code}
 
@@ -65,19 +68,20 @@ Most of the codes of the \ac{TREX} \ac{CoE} are written in Fortran
 with some scripts in Bash and Python. Outside of the
 \ac{CoE}, Fortran is also important (Casino, Amolqc), and other
 important languages used by the community are C and {\CC} (QMCPack,
-QWalk), and Julia is gaining in popularity.\cite{poole_2020} The
-library we design should be compatible with all of these languages.
-The \ac{QMCkl} \ac{API} has to be compatible with the C language
-since libraries with a C-compatible \ac{API} can be used in every
-other language.
+QWalk). Python is very popular for prototyping, and Julia is gaining
+in popularity.\cite{poole_2020} The library we design should be
+compatible with at least all of these languages. A simple solution is
+to provide a C-compatible \ac{API} since all these languages have a
+\ac{FFI} for calling functions written in C, especially for
+interacting with the operating system.
 
 High-performance versions of the \ac{QMCkl}, with the same \ac{API},
-will be rewritten in \ac{WP}~3 by the experts in \ac{HPC}. These
+will be rewritten in \ac{WP}3 by the experts in \ac{HPC}. These
 optimized libraries will be tuned for specific architectures, among
-which we can cite x86 based processors, and \ac{GPU} accelerators.
+which we can cite x86 based processors and \ac{GPU} accelerators.
 Nowadays, the most efficient software tools to take advantage of
 low-level features of the processor (intrinsics) and of \acp{GPU} are
-for {\CC} developers. It is highly probable that the optimized
+for {\CC} developers. It is highly probable that some optimized
 implementations will be written in {\CC}, and this is agreement with our
 choice to make the \ac{API} C-compatible.
 
@@ -85,18 +89,33 @@ Fortran is one of the most common languages used by the community, and
 is simple enough to make the algorithms readable both by experts in
 \ac{QMC}, and experts in \ac{HPC}. Hence we propose in this
 pedagogical implementation of \ac{QMCkl} to use Fortran to express the
-QMC algorithms. As the main languages of the library is C, this
-implies that the exposed C functions call the Fortran routine.
-However, for internal functions related to system programming, the C
-language is more natural than Fortran.
+QMC algorithms, but we expose them through the \ac{API} as if they
+were written in C using the \mintinline{fortran}{iso_c_binding} \ac{FFI}.
 
-The  Fortran  source  files  should provide  a  C  interface  using the
-\mintinline{Fortran}{iso_c_binding} module. The name of the Fortran source files
-should end with \mintinline{shell}{_f.f90} to be properly handled by the
-{\Makefile}.  The names of the functions defined in Fortran should be the
+To avoid collisions in the names of the compiled files, the names of
+the Fortran source files end with \mintinline{shell}{_f.f90}, and Fortran
+interface files end with \mintinline{shell}{_fh.f90}.
+The names of the functions defined in Fortran should be the
 same as those exposed in the \ac{API} suffixed by \mintinline{shell}{_f}.
-Fortran interfaces should also be written in the
-\mintinline{shell}{qmckl_f.f90} file.
+
+When the library is built, a single shared library is produced
+(\mintinline{shell}{libqmckl.so}). All the function prototypes are given in a single C
+header file \mintinline{shell}{qmckl.h}, and a Fortran interface to the library
+is provided via a module containing only interfaces to the C functions
+(\mintinline{shell}{qmckl_f.f90}).
+
+
+\subsection{Packaging}
+
+We intend to use the GNU build system, Autotools,\cite{autotools} for
+configuration and installation scripts.
+Although there exists more modern build tools, we have chosen a
+solution that will be easy for the end user, and which is one of the
+most reliable in terms of portability among different architectures.
+
+In the future, we plan to provide \texttt{.deb} and \texttt{.rpm}
+packages for the most common Linux distributions, as well as a package
+for the Spack package manager.\cite{spack}
 
 \section{Design of the library}
 
