@@ -227,17 +227,17 @@ Research codes are developed over a long period of time by multiple
 researchers, Ph.D students and post-docs. The professional evaluation
 of these people is based on their scientific production and not on the
 quality of the software they write, so code quality and refactoring is
-often left in the low-priority tasks. As a consequence, old research
+often left in the low-priority tasks. As a consequence, research
 codes often depend on some choices made at an immature stage of the
-program, and solutions to bypass these wrong choices make the code
+program, and solutions to bypass the wrong choices make the code
 complicated to understand for external people, especially if they are
 not familiar with the domain.
 
 \subsection{Kernel extraction}
 
 The strategy we have chosen to extract the kernels of the codes is to
-first discuss among the developers of \ac{QMC} codes how they have
-implemented a particular kernel. Once the developers have agreed on
+first discuss among the developers of \ac{QMC} codes to understand how they have
+implemented each particular kernel. Once the developers have agreed on
 which algorithm is best, they first formulate the algorithm in terms
 of mathematical expressions in a {\LaTeX} file, and they create a prototype application 
 (the \emph{mini-application}) implementing \emph{only} the kernel of
@@ -245,12 +245,13 @@ interest. This mini-application can be easily compiled and executed,
 and is considered valid when it reproduces exactly the values obtained
 with the kernel present in the original \ac{QMC} code.
 
-The mini-app is then thoroughy modified in discussion with the
-\ac{HPC} experts of \ac{WP}3 until the optimal data strtuctures are
-determined. This step is crucial to facilitate the access to performance
-in the \ac{HPC} versions of the library that will be developed in \ac{WP}3.
-Once the \ac{QMC} and \ac{HPC} specialists have agreed
-on the data structures, the kernel is ready to be implemented in the
+The mini-application is then thoroughy modified together with the
+\ac{HPC} experts involved in \ac{WP}3 until the optimal data
+strtuctures and algorithms are determined. This step is crucial to
+facilitate the access to performance in the \ac{HPC} versions of the
+library that will be developed in \ac{WP}3.  Once the \ac{QMC} and
+\ac{HPC} specialists have agreed on the data structures, the kernel is
+ready to be implemented in the
 library.
 
 
@@ -294,9 +295,11 @@ also required. To compute these derivatives, multiple intermediates
 will be common and we need to identify them such that the same
 intermediates can be reused for several derivatives.
 
-The mini-application, available on
+We have rewritten a mini-application to implement the three-body component
+of the Jastrow factor, as well as the first and second derivative with
+respect to electron coordinates. This mini-application, available on
 GitHub\footnote{\url{https://github.com/trex-coe/irpjast}} has allowed us to
-rewrite the expression in a way allowing us to take advantage of BLAS3
+rewrite the expressions in a way allowing us to take advantage of BLAS3
 matrix multiplication. The expression is now expressed in terms of
 rank-3 and rank-4 tensors
 \newcommand{\tr}{\, \bar{\mathtt{r}}}
@@ -319,10 +322,11 @@ with
   
 Similarly, the gradient with respect to electron coordinates and the
 Laplacian require an additional intermediate and reuses ${\tP}$. As
-the gradient ($\nabla_{i}$) and the Laplacian ($\Delta_i$) have part
-of their formula in common, the $3\Nel$ components of the gradient and
-the $\Nel$ components of the Laplacian are stored in the same tensor,
-adding an extra index $m=(1,2,3)$ for $\nabla_x, \nabla_y,\nabla_z$
+the gradient ($\nabla_{i}$) and the Laplacian ($\Delta_i$) have a
+large part of their expression in common, the $3\Nel$ components of
+the gradient and the $\Nel$ components of the Laplacian are stored in
+the same tensor, adding an extra index $m=(1,2,3)$ for $\nabla_x,
+\nabla_y,\nabla_z$
 and $m=4$ for $\Delta$.
 
 \newcommand{\tg}{\, \bar{\mathtt{g}}}
@@ -368,8 +372,10 @@ with
 \end{figure}
 
 This rewriting allowed us to move the computationally intensive part in
-$\mathcal{O}(\Nat{\Nel}^2)$ into a BLAS3 matrix multiplication, the
-remaining part being in $\mathcal{O}(\Nat \Nel)$.
+$\mathcal{O}(\Nat{\Nel}^2)$, i.e. the construction of the intermediate
+tensors, into a BLAS3 matrix multiplication, the remaining part being
+in $\mathcal{O}(\Nat \Nel)$.
+
 The performance of the computation of the value, gradient and Laplacian of
 the three-body Jastrow factor was measured on an Intel(R) Xeon(R) Gold
 6130 processor, and the code was compiled with the Intel Fortran
@@ -378,11 +384,12 @@ compiler version 2021.1 with options
 The speedup with respect to the unoptimized kernel is presented in
 figure~\ref{fig:speedup}, and reaches a factor of $19\times$ for the
 largest system sizes. Performance analyzis of the mini-application
-showed that we have reached 80\% of the single core peak performance
-of the CPU core for this kernel.
+showed that at this stage we have reached 80\% of the single core peak
+performance of the CPU core for this kernel.
 
 The same strategy for kernel extraction of the codes and rewriting
-will be applied to all other possible computational bottlenecks.
+will be applied to all other possible computational bottlenecks of QMC
+simulations, and then the kernels will be implemented in the library.
 
 
 \section{License}
