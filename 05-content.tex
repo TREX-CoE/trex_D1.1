@@ -60,6 +60,65 @@ source code blocks can be executed interactively, as in Jupyter
 notebooks,\cite{Kluyver_2016} but with the advantage that multiple
 languages can be used in the same notebook.
 
+\subsection{Algorithms}
+
+Reducing the scaling of an algorithm usually implies also reducing its
+arithmetic complexity (number of flops per byte). For small
+sizes \(\mathcal{O}(N^3)\) and \(\mathcal{O}(N^2)\) algorithms are
+usually better adapted than linear scaling algorithms, for which the
+cost of reducing the arithmetic complexity is amortized by the large
+reduction of the number of flops.
+As \ac{QMCkl} is a general purpose library, multiple algorithms will
+be implemented adapted to different ranges of sizes.
+
+\subsection{Dependencies}
+
+Dependencies are critical: if a user is not able to install the
+required dependencies, the user is not going to be able to use our
+library, and solving the problem is out of our control. So the list of
+external dependencies should be kept as small as possible. 
+External libraries should be used \emph{only} if their use is
+strongly justified, and if we are sure that the users will be able to
+have access to them.
+
+The dependencies needed to use pre-compiled versions of the library
+are \ac{BLAS} and \ac{LAPACK}.
+
+The dependencies needed to compile the code are
+a C and a Fortran compiler, GNU make, \ac{BLAS} and \ac{LAPACK}, and
+$\mu$nit\cite{munit} for building the unit tests.
+
+The dependencies needed to create the \ac{HTML} documentation are
+Emacs~26 and the package Emacs-htmlize.
+
+\subsection{Packaging}
+
+We intend to use the GNU build system, Autotools,\cite{autotools} for
+configuration and installation scripts.
+Although there exists more modern build tools, we have chosen a
+solution that will be easy for the end user, and which is one of the
+most reliable in terms of portability among different architectures.
+
+In the future, we plan to provide \texttt{.deb} and \texttt{.rpm}
+packages for the most common Linux distributions, as well as a package
+for the Spack package manager.\cite{spack}
+
+
+\subsection{Continuous integration}
+
+Continuous integration has been setup on the GitHub platform. Upon
+pull request, the repository is automatically cloned on a virtual
+machine. The source code is then extracted from the {\orgmode}
+files and the library is compiled. Then the unit tests are compiled
+and linked together with the library. If all the tests pass, the
+pull request is considered valid, and can be merged.
+
+When the code is updated, the documentation is automatically built and
+the server hosting the documentation is updated, such that the web
+site containing the documentation is always synchronized with the
+latest version of the master branch of the GitHub repository.
+
+
 \section{Source code}
 
 \subsection{Choice of the programming language}
@@ -104,18 +163,11 @@ header file \mintinline{shell}{qmckl.h}, and a Fortran interface to the library
 is provided via a module containing only interfaces to the C functions
 (\mintinline{shell}{qmckl_f.f90}).
 
+\subsection{License}
 
-\subsection{Packaging}
+The library is licensed under the open-source 3-clause BSD license to facilitate
+its adoption in all quantum chemistry software, commercial or not.
 
-We intend to use the GNU build system, Autotools,\cite{autotools} for
-configuration and installation scripts.
-Although there exists more modern build tools, we have chosen a
-solution that will be easy for the end user, and which is one of the
-most reliable in terms of portability among different architectures.
-
-In the future, we plan to provide \texttt{.deb} and \texttt{.rpm}
-packages for the most common Linux distributions, as well as a package
-for the Spack package manager.\cite{spack}
 
 \section{Design of the library}
 
@@ -144,10 +196,11 @@ form is allowed.
 
 \subsection{Application programming interface}
 
-In the C language, the number of bits used by the integer types can
-change from one architecture to another one. To circumvent this
+In the C language, the number of bits used by the basic integer types
+(\mintinline{C}{int}, \mintinline{C}{long int}, \textit{etc}) can
+change from one architecture to the other. To circumvent this
 problem, we choose to use the integer types defined in
-\mintinline{C}{<stdint.h>} where the number of bits used for the
+\mintinline{C}{<stdint.h>} where the number of bits used to represent
 integers are fixed.
 
 To ensure that the library will be easily usable in \emph{any} other
@@ -169,19 +222,20 @@ following:
 \item integers used for counting should always be \mintinline{C}{int64_t}
 \end{itemize}
 
-To facilitate the  use in other languages than C, we will provide some
-bindings in other languages in other repositories.
+To facilitate the  use in other languages than C, we plan to provide 
+bindings for other languages.
 
 
 \subsubsection{Global state}
 
 Global variables should  be avoided in the library,  because it is
 possible that one  single program needs to  use multiple instances
-of the library. To solve this  problem we propose to use a pointer
+of the library, or to use the library in a multi-threaded context.
+To solve this  problem we propose to use a pointer
 to a {\context}  variable,  built   by  the  library   with  the
 \mintinline{C}{qmckl_context_create} function. The
 {\context} contains the global state of the library, and is used as
-the first argument of many \ac{QMCkl} functions.
+the first argument of most \ac{QMCkl} functions.
 
 The internal structure of the {\context}  is not specified, to give a
 maximum of  freedom to  the different  implementations.  Modifying
@@ -191,8 +245,10 @@ the  state   is  done   by  setter   and  getter functions,   prefixed  by
 When a {\context} variable is modified by a setter, a copy of the old
 data structure is made and updated, and the pointer to the new data
 structure is returned, such that the old contexts can still be
-accessed.  It is also possible to modify the state in an mutable
-fashion, using the \mintinline{C}{qmckl_context_update_} functions.
+accessed in case they are already involved in running computations by
+other threads. It is also possible to modify the state in an mutable
+fashion, using the \mintinline{C}{qmckl_context_update_} functions,
+although it is not recommended as the default practice.
 The {\context} and its old versions can be destroyed with
 \mintinline{C}{qmckl_context_destroy}.
 
@@ -201,42 +257,33 @@ The {\context} and its old versions can be destroyed with
 
 Low-level functions are very simple  functions which are leaves of
 the function call tree (they don't call any other \ac{QMCkl} function).
-
 These  functions   are   \emph{pure},   and  unaware   of   the   \ac{QMCkl}
 {\context}. They are not allowed to allocate/deallocate memory, and
 if they need temporary memory it should be provided in input.
+
+
+\subsubsection{High-level functions}
+
+High-level functions  are at  the top of  the function  call tree.
+They  are  able  to  choose which  lower-level  function  to  call
+depending on the required precision, and to do the corresponding type
+conversions. They are also able to choose between different algorithms
+(sparse or dense for example), according to parameters defined in the
+{\context}.  These functions are also responsible for allocating
+temporary storage, to optimize the use of accelerators.
+
+The high-level functions should be pure, unless if it is
+justified. If any, all the side effects should be made in the
+\texttt{context} variable.
 
 \subsubsection{Numerical precision}
 
 The number of bits of precision  required for a function should be
 given as an input of low-level computational functions. This input
 will be used to define the values of the different thresholds that
-might be  used to  avoid computing unnecessary  noise.  High-level
-functions  will  use  the  precision specified  in  the  \texttt{context}
-variable.
-
-\subsubsection{High-level functions}
-
-High-level functions  are at  the top of  the function  call tree.
-They  are  able  to  choose which  lower-level  function  to  call
-depending on the required precision, and do the corresponding type
-conversions.  These functions are  also responsible for allocating
-temporary storage, to simplify the use of accelerators.
-
-The high-level  functions should be pure,  unless the introduction
-of non-purity is justified. All the side effects should be made in
-the \texttt{context} variable.
-
-
-\subsection{Algorithms}
-
-Reducing the scaling of an  algorithm usually implies also reducing
-its arithmetic  complexity (number  of flops per  byte). Therefore,
-for  small  sizes   \(\mathcal{O}(N^3)\)  and  \(\mathcal{O}(N^2)\)
-algorithms are  better adapted than linear  scaling algorithms.  As
-\ac{QMCkl} is a  general purpose library, multiple  algorithms will be
-implemented adapted to different problem sizes.
-
+might be used to avoid computing unnecessary numerical
+noise. High-level functions will use the precision specified in the
+\texttt{context} variable.
 
 
 \section{Codesign}
@@ -246,11 +293,11 @@ Research codes are developed over a long period of time by multiple
 researchers, Ph.D students and post-docs. The professional evaluation
 of these people is based on their scientific production and not on the
 quality of the software they write, so code quality and refactoring is
-often left in the low-priority tasks. As a consequence, research
+often left in the low-priority task queue. As a consequence, research
 codes often depend on some choices made at an immature stage of the
 program, and solutions to bypass the wrong choices make the code
-complicated to understand for external people, especially if they are
-not familiar with the domain.
+complicated to understand for external programmers, especially if they
+are not familiar with the domain.
 
 \subsection{Kernel extraction}
 
@@ -314,12 +361,12 @@ also required. To compute these derivatives, multiple intermediates
 will be common and we need to identify them such that the same
 intermediates can be reused for several derivatives.
 
-We have rewritten a mini-application to implement the three-body component
+We have written a mini-application to implement the three-body component
 of the Jastrow factor, as well as the first and second derivative with
 respect to electron coordinates. This mini-application, available on
 GitHub\footnote{\url{https://github.com/trex-coe/irpjast}} has allowed us to
 rewrite the expressions in a way allowing us to take advantage of BLAS3
-matrix multiplication. The expression is now expressed in terms of
+matrix multiplications. The formula is now expressed in terms of
 rank-3 and rank-4 tensors
 \newcommand{\tr}{\, \bar{\mathtt{r}}}
 \newcommand{\tR}{\, \bar{\mathtt{R}}}
@@ -344,7 +391,7 @@ Laplacian require an additional intermediate and reuses ${\tP}$. As
 the gradient ($\nabla_{i}$) and the Laplacian ($\Delta_i$) have a
 large part of their expression in common, the $3\Nel$ components of
 the gradient and the $\Nel$ components of the Laplacian are stored in
-the same tensor, adding an extra index $m=(1,2,3)$ for $\nabla_x,
+the same array, adding an extra index $m=(1,2,3)$ for $\nabla_x,
 \nabla_y,\nabla_z$
 and $m=4$ for $\Delta$.
 
@@ -404,52 +451,14 @@ The speedup with respect to the unoptimized kernel is presented in
 figure~\ref{fig:speedup}, and reaches a factor of $19\times$ for the
 largest system sizes. Performance analyzis of the mini-application
 showed that at this stage we have reached 80\% of the single core peak
-performance of the CPU core for this kernel.
+performance of the CPU core for this kernel. Profiling with MAQAO
+confirmed a the high quality of the code produced by our mini-application.
 
-The same strategy for kernel extraction of the codes and rewriting
+The same strategy of kernel extraction of the codes and rewriting
 will be applied to all other possible computational bottlenecks of QMC
-simulations, and then the kernels will be implemented in the library.
+simulations, and then the kernels will be ready to be implemented in
+the library.
 
-
-\section{License}
-
-The library is licensed under the open-source 3-clause BSD license to facilitate
-its adoption in all quantum chemistry software, commercial or not.
-
-\section{Dependencies}
-
-Dependencies are critical: if a user is not able to install the
-required dependencies, the user is not going to be able to use our
-library, and solving the problem is out of our control. So the list of
-external dependencies should be kept as small as possible. 
-External libraries should be used \emph{only} if their use is
-strongly justified, and if we are sure that the users will be able to
-have access to them.
-
-The dependencies needed to use pre-compiled versions of the library
-are \ac{BLAS} and \ac{LAPACK}.
-
-The dependencies needed to compile the code are
-a C and a Fortran compiler, GNU make, \ac{BLAS} and \ac{LAPACK}, and
-$\mu$nit\cite{munit} for building the unit tests.
-
-The dependencies needed to create the \ac{HTML} documentation are
-Emacs~26 and the package Emacs-htmlize.
-
-
-\section{Continuous integration}
-
-Continuous integration has been setup on the GitHub platform. Upon
-pull request, the repository is automatically cloned on a virtual
-machine. The source code is then extracted from the {\orgmode}
-files and the library is compiled. Then the unit tests are compiled
-and linked together with the library. If all the tests pass, the
-pull request is considered valid, and can be merged.
-
-When the code is updated, the documentation is automatically built and
-the server hosting the documentation is updated, such that the web
-site containing the documentation is always synchronized with the
-latest version of the master branch of the GitHub repository.
 
 
 
@@ -460,13 +469,13 @@ In this section, we include as an example part of the documentation of
 the library which is automatically generated from the {\orgmode}
 files, in the current status. The rest of the documentation can be
 found on the web site of the library\footnote{\url{https://trex-coe.github.io/qmckl}}.
-The library is still at an early development stage. Up to now most of
-the effort was made on preparing solid bases for the development of
+Please, keep in mind that the library is still at an early development
+stage. In the first six months, most of the effort was made on
+preparing solid bases for the development of
 the library, more related to system programming than scientific
 programming (the context variable, memory allocation, conventions,
 Makefiles, generation of the documentation, \textit{etc}). The actual
-implementation of the kernels is in progress, and we refer the
-reaer to section~\ref{sec:codesign} for more detail on our strategy.
+implementation of the kernels is just starting.
 
 
 \clearpage
