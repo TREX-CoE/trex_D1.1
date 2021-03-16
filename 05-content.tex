@@ -25,7 +25,7 @@ available on the GitHub repository at \url{https://github.com/trex-coe/qmckl}.
 In a traditional code, most of the lines of source files are code,
 scripts, {\Makefile}s, and only a few lines are comments explaining
 parts of the code that are non-trivial to understand. The
-documentation of the prorgam is usually written in a separate
+documentation of the program is usually written in a separate
 directory, and is often outdated with respect to the current version
 of the code.
 
@@ -35,8 +35,7 @@ document. Most of the lines of the source files are text,
 mathematical formulas, tables, figures, \textit{etc}, and the lines of
 code are just the translation in a computer language of the ideas
 and algorithms expressed in the text. More importantly, the ``document'' is
-structured like a text document with sections, subsections, a bibliography,
-a table of contents \textit{etc}. The place where pieces of code
+structured like a text document with sections, subsections, a bibliography, and a table of contents. The place where pieces of code
 appear are the places where they should belong for the reader to
 understand the logic of the program, not the places where the compiler
 expects to find them. Both the publishable-quality document and the
@@ -49,7 +48,7 @@ of the algorithms in a language that can be compiled, so that the
 correctness of the algorithms can be tested.
 
 We have chosen to write the source files in {\orgmode}
-format,\cite{schulte_2012,orgmode} as any text editor can be used to
+format\cite{schulte_2012,orgmode}, as any text editor can be used to
 edit {\orgmode} files. To produce the documentation, there exists
 multiple possibilities to convert {\orgmode} files into different
 formats such as \ac{HTML} or \ac{PDF}. The source code is easily
@@ -57,7 +56,7 @@ extracted from the {\orgmode} files invoking the Emacs text editor
 from the command-line in the {\Makefile}, and then the produced files
 are compiled as usual.  Moreover, within the Emacs text editor the
 source code blocks can be executed interactively, as in Jupyter
-notebooks,\cite{Kluyver_2016} but with the advantage that multiple
+notebooks\cite{Kluyver_2016}, but with the advantage that multiple
 languages can be used in the same notebook.
 
 \subsection{Algorithms}
@@ -101,14 +100,13 @@ most reliable in terms of portability among different architectures.
 
 In the future, we plan to provide \texttt{.deb} and \texttt{.rpm}
 packages for the most common Linux distributions, as well as a package
-for the Spack package manager.\cite{spack}
+for the Spack package manager\cite{spack}.
 
 
 \subsection{Continuous integration}
 
 Continuous integration has been setup on the GitHub platform. Upon
-pull request, the repository is automatically cloned on a virtual
-machine. The source code is then extracted from the {\orgmode}
+receiving a pull request, the repository is automatically cloned on a virtual machine. The source code is then extracted from the {\orgmode}
 files and the library is compiled. Then the unit tests are compiled
 and linked together with the library. If all the tests pass, the
 pull request is considered valid, and can be merged.
@@ -125,10 +123,10 @@ latest version of the master branch of the GitHub repository.
 
 Most of the codes of the \ac{TREX} \ac{CoE} are written in Fortran
 with some scripts in Bash and Python. Outside of the
-\ac{CoE}, Fortran is also important (Casino, Amolqc), and other
+\ac{CoE}, Fortran is also important (Casino, Amolqc). Other
 important languages used by the community are C and {\CC} (QMCPack,
 QWalk). Python is very popular for prototyping, and Julia is gaining
-in popularity.\cite{poole_2020} The library we design should be
+in popularity\cite{poole_2020}. The library we design should be
 compatible with at least all of these languages. A simple solution is
 to provide a C-compatible \ac{API} since all these languages have a
 \ac{FFI} for calling functions written in C, especially for
@@ -255,7 +253,7 @@ The {\context} and its old versions can be destroyed with
 
 \subsubsection{Low-level functions}
 
-Low-level functions are very simple  functions which are leaves of
+Low-level functions are very simple functions which are leaves of
 the function call tree (they don't call any other \ac{QMCkl} function).
 These  functions   are   \emph{pure},   and  unaware   of   the   \ac{QMCkl}
 {\context}. They are not allowed to allocate/deallocate memory, and
@@ -311,9 +309,9 @@ interest. This mini-application can be easily compiled and executed,
 and is considered valid when it reproduces exactly the values obtained
 with the kernel present in the original \ac{QMC} code.
 
-The mini-application is then thoroughy modified together with the
+The mini-application is then thoroughly modified together with the
 \ac{HPC} experts involved in \ac{WP}3 until the optimal data
-strtuctures and algorithms are determined. This step is crucial to
+structures and algorithms are determined. This step is crucial to
 facilitate the access to performance in the \ac{HPC} versions of the
 library that will be developed in \ac{WP}3.  Once the \ac{QMC} and
 \ac{HPC} specialists have agreed on the data structures, the kernel is
@@ -433,7 +431,7 @@ with
   \begin{center}
   \includegraphics[width=0.75\textwidth]{speedup.pdf}
   \end{center}
-  \caption{\label{fig:speedup}Speedup obained after the re-expression of the three-body
+  \caption{\label{fig:speedup}Speedup obtained after the re-expression of the three-body
     Jastrow factor.}
 \end{figure}
 
