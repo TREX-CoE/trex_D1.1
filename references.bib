@@ -118,3 +118,46 @@
 	note = {[Online; accessed 11. Mar. 2021]},
 	url = {https://www.penguinrandomhouse.ca/books/600402/autotools-2nd-edition-by-john-calcote/9781593279721}
 }
+
+@book{sycl,
+	author = {Keryell, Ronan and Reyes, Ruyman and Howes, Lee},
+	title = {{Khronos SYCL for OpenCL: a tutorial}},
+	journal = {Proceedings of the 3rd International Workshop on OpenCL},
+	year = {2015},
+	month = {May},
+	isbn = {978-1-45033484-6},
+	publisher = {Association for Computing Machinery},
+	address = {New York, NY, USA},
+	doi = {10.1145/2791321.2791345}
+}
+
+@article{kokkos,
+	author = {Carter Edwards, H. and Trott, Christian R. and Sunderland, Daniel},
+	title = {{Kokkos}},
+	journal = {J. Parallel Distrib. Comput.},
+	volume = {74},
+	number = {12},
+	pages = {3202--3216},
+	year = {2014},
+	month = {Dec},
+	issn = {0743-7315},
+	publisher = {Academic Press, Inc.},
+	doi = {10.1016/j.jpdc.2014.07.003}
+}
+
+@inproceedings{pohl_2016,
+author = {Pohl, Angela and Cosenza, Biagio and Mesa, Mauricio Alvarez and Chi, Chi Ching and Juurlink, Ben},
+title = {An Evaluation of Current SIMD Programming Models for C++},
+year = {2016},
+isbn = {9781450340601},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+doi = {10.1145/2870650.2870653},
+abstract = {SIMD extensions were added to microprocessors in the mid '90s to speed-up data-parallel code by vectorization. Unfortunately, the SIMD programming model has barely evolved and the most efficient utilization is still obtained with elaborate intrinsics coding. As a consequence, several approaches to write efficient and portable SIMD code have been proposed. In this work, we evaluate current programming models for the C++ language, which claim to simplify SIMD programming while maintaining high performance.The proposals were assessed by implementing two kernels: one standard floating-point benchmark and one real-world integer-based application, both highly data parallel. Results show that the proposed solutions perform well for the floating point kernel, achieving close to the maximum possible speed-up. For the real-world application, the programming models exhibit significant performance gaps due to data type issues, missing template support and other problems discussed in this paper.},
+booktitle = {Proceedings of the 3rd Workshop on Programming Models for SIMD/Vector Processing},
+articleno = {3},
+numpages = {8},
+keywords = {vectorization, parallel programming, C++, programming model, SIMD},
+location = {Barcelona, Spain},
+series = {WPMVP '16}
+}

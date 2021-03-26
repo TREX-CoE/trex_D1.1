@@ -63,10 +63,10 @@ languages can be used in the same notebook.
 
 Reducing the scaling of an algorithm usually implies also reducing its
 arithmetic complexity (number of flops per byte). For small
-sizes \(\mathcal{O}(N^3)\) and \(\mathcal{O}(N^2)\) algorithms are
-usually better adapted than linear scaling algorithms, for which the
-cost of reducing the arithmetic complexity is amortized by the large
-reduction of the number of flops.
+sizes, \(\mathcal{O}(N^3)\) and \(\mathcal{O}(N^2)\) algorithms are
+often better adapted than linear scaling algorithms. Indeed, the
+reduction of the number of flops does not necessarily compensate the
+high efficiency of BLAS3 implementations.
 As \ac{QMCkl} is a general purpose library, multiple algorithms will
 be implemented adapted to different ranges of sizes.
 
@@ -74,7 +74,7 @@ be implemented adapted to different ranges of sizes.
 
 Dependencies are critical: if a user is not able to install the
 required dependencies, the user is not going to be able to use our
-library, and solving the problem is out of our control. So the list of
+library. So the list of
 external dependencies should be kept as small as possible. 
 External libraries should be used \emph{only} if their use is
 strongly justified, and if we are sure that the users will be able to
@@ -136,11 +136,12 @@ High-performance versions of the \ac{QMCkl}, with the same \ac{API},
 will be rewritten in \ac{WP}3 by the experts in \ac{HPC}. These
 optimized libraries will be tuned for specific architectures, among
 which we can cite x86 based processors and \ac{GPU} accelerators.
-Nowadays, the most efficient software tools to take advantage of
-low-level features of the processor (intrinsics) and of \acp{GPU} are
-for {\CC} developers. It is highly probable that some optimized
-implementations will be written in {\CC}, and this is agreement with our
-choice to make the \ac{API} C-compatible.
+Nowadays, there exists very efficient and popular software tools to
+take advantage of low-level features of the processor\cite{pohl_2016}
+(vectorization intrinsics) and of \acp{GPU} accelerators (SYCL\cite{SYCL},
+OneAPI, Kokkos\cite{kokkos}) for {\CC} developers. So it is very likely
+that some optimized implementations will be written in {\CC}, and this
+is agreement with our choice to make the \ac{API} C-compatible.
 
 Fortran is one of the most common languages used by the community, and
 is simple enough to make the algorithms readable both by experts in
@@ -255,14 +256,17 @@ The {\context} and its old versions can be destroyed with
 
 Low-level functions are very simple functions which are leaves of
 the function call tree (they don't call any other \ac{QMCkl} function).
-These  functions   are   \emph{pure},   and  unaware   of   the   \ac{QMCkl}
-{\context}. They are not allowed to allocate/deallocate memory, and
-if they need temporary memory it should be provided in input.
+These  functions   are   \emph{pure} (i.e. without side effects), and
+unaware of the \ac{QMCkl} {\context}. They are not allowed to
+allocate/deallocate memory, and if they need temporary memory it
+should be provided in input. This will prevent a degradation of
+performance due to unnecessary repeated memory allocations and
+deallocations hot spots of the programs.
 
 
 \subsubsection{High-level functions}
 
-High-level functions  are at  the top of  the function  call tree.
+High-level functions  are higher in the function  call tree.
 They  are  able  to  choose which  lower-level  function  to  call
 depending on the required precision, and to do the corresponding type
 conversions. They are also able to choose between different algorithms
@@ -385,7 +389,7 @@ with
   \]
   
 Similarly, the gradient with respect to electron coordinates and the
-Laplacian require an additional intermediate and reuses ${\tP}$. As
+Laplacian require an additional intermediate array and reuses ${\tP}$. As
 the gradient ($\nabla_{i}$) and the Laplacian ($\Delta_i$) have a
 large part of their expression in common, the $3\Nel$ components of
 the gradient and the $\Nel$ components of the Laplacian are stored in
