@@ -281,13 +281,8 @@ integer function qmckl_ao_polynomial_vgl_f(context, X, R, lmax, n, L, ldl, VGL, 
      return
   endif
 
-  if (lmax <= 0) then
+  if (lmax < 0) then
      info = QMCKL_INVALID_ARG_4
-     return
-  endif
-
-  if (n <= 0) then
-     info = QMCKL_INVALID_ARG_5
      return
   endif
 
@@ -410,7 +405,6 @@ integer(c_int32_t) function test_qmckl_ao_polynomial_vgl(context) bind(C)
   Y(:) = X(:) - R(:)
 
   lmax = 4;
-  n = 0;
   ldl = 3;
   ldv = 100;
 
@@ -420,23 +414,21 @@ integer(c_int32_t) function test_qmckl_ao_polynomial_vgl(context) bind(C)
 
   test_qmckl_ao_polynomial_vgl = &
        qmckl_ao_polynomial_vgl(context, X, R, lmax, n, L, ldl, VGL, ldv)
-  if (test_qmckl_ao_polynomial_vgl /= 0) return
 
-  test_qmckl_ao_polynomial_vgl = -1
-
-  if (n /= d) return 
+  if (test_qmckl_ao_polynomial_vgl /= QMCKL_SUCCESS) return
+  if (n /= d) return
 
   do j=1,n
-     test_qmckl_ao_polynomial_vgl = -11
+     test_qmckl_ao_polynomial_vgl = QMCKL_FAILURE
      do i=1,3
         if (L(i,j) < 0) return
      end do
-     test_qmckl_ao_polynomial_vgl = -12
+     test_qmckl_ao_polynomial_vgl = QMCKL_FAILURE
      if (dabs(1.d0 - VGL(1,j) / (&
           Y(1)**L(1,j) * Y(2)**L(2,j) * Y(3)**L(3,j)  &
           )) > epsilon ) return
 
-     test_qmckl_ao_polynomial_vgl = -13
+     test_qmckl_ao_polynomial_vgl = QMCKL_FAILURE
      if (L(1,j) < 1) then
         if (VGL(2,j) /= 0.d0) return
      else
@@ -445,7 +437,7 @@ integer(c_int32_t) function test_qmckl_ao_polynomial_vgl(context) bind(C)
              )) > epsilon ) return
      end if
 
-     test_qmckl_ao_polynomial_vgl = -14
+     test_qmckl_ao_polynomial_vgl = QMCKL_FAILURE
      if (L(2,j) < 1) then
         if (VGL(3,j) /= 0.d0) return
      else
@@ -454,7 +446,7 @@ integer(c_int32_t) function test_qmckl_ao_polynomial_vgl(context) bind(C)
              )) > epsilon ) return
      end if
 
-     test_qmckl_ao_polynomial_vgl = -15
+     test_qmckl_ao_polynomial_vgl = QMCKL_FAILURE
      if (L(3,j) < 1) then
         if (VGL(4,j) /= 0.d0) return
      else
@@ -463,7 +455,7 @@ integer(c_int32_t) function test_qmckl_ao_polynomial_vgl(context) bind(C)
              )) > epsilon ) return
      end if
 
-     test_qmckl_ao_polynomial_vgl = -16
+     test_qmckl_ao_polynomial_vgl = QMCKL_FAILURE
      w = 0.d0
      if (L(1,j) > 1) then
         w = w + L(1,j) * (L(1,j)-1) * Y(1)**(L(1,j)-2) * Y(2)**L(2,j) * Y(3)**L(3,j) 
@@ -477,7 +469,7 @@ integer(c_int32_t) function test_qmckl_ao_polynomial_vgl(context) bind(C)
      if (dabs(1.d0 - VGL(5,j) / w) > epsilon ) return
   end do
 
-  test_qmckl_ao_polynomial_vgl = 0
+  test_qmckl_ao_polynomial_vgl = QMCKL_SUCCESS
 
   deallocate(L,VGL)
 end function test_qmckl_ao_polynomial_vgl

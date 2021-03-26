@@ -60,6 +60,7 @@ typedef struct qmckl_context_struct {
   qmckl_memory_struct      * alloc;
 
   /* Thread lock */
+  int                        lock_count;
   pthread_mutex_t            mutex;
 
   /* Validity checking */
@@ -122,21 +123,10 @@ qmckl_context qmckl_context_create() {
   }
 
   /* Set all pointers to NULL */
-  memset(ctx, NULL, sizeof(qmckl_context_struct));
+  memset(ctx, 0, sizeof(qmckl_context_struct));
 
   /* Initialize lock */
-  pthread_mutexattr_t attr;
-  int rc;
-
-  rc = pthread_mutexattr_init(&attr); 
-  assert (rc == 0);
-
-  (void) pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
-
-  rc = pthread_mutex_init ( &(ctx->mutex), &attr);
-  assert (rc == 0);
-
-  (void)pthread_mutexattr_destroy(&attr);
+  init_lock(&(ctx->mutex));
 
   /* Initialize data */
   ctx->tag = VALID_TAG;
@@ -147,26 +137,77 @@ qmckl_context qmckl_context_create() {
   return context;
 }
 \end{minted}
+\subsection{Access to the previous context}
+\label{sec:org80592fe}
+
+\texttt{qmckl\_context\_previous} returns the previous context. It returns
+\texttt{QMCKL\_NULL\_CONTEXT} for the initial context and for the \texttt{NULL} context.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+qmckl_context qmckl_context_previous(const qmckl_context context) {
+
+  const qmckl_context checked_context = qmckl_context_check(context);
+  if (checked_context == (qmckl_context) 0) {
+    return (qmckl_context) 0;
+  }
+
+  const qmckl_context_struct* ctx = (qmckl_context_struct*) checked_context;
+  return qmckl_context_check((qmckl_context) ctx->prev);
+}
+\end{minted}
 \subsubsection{Locking}
 \label{sec:orge3ea316}
 
 For thread safety, the context may be locked/unlocked. The lock is
-initialized with the \texttt{PTHREAD\_MUTEX\_ERRORCHECK}, so it is a bit
-slower than a usual mutex but safer.
+initialized with the \texttt{PTHREAD\_MUTEX\_RECURSIVE} attribute, and the
+number of times the thread has locked it is saved in the
+\texttt{lock\_count} attribute.
 
 \begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+void init_lock(pthread_mutex_t* mutex) {
+  pthread_mutexattr_t attr;
+  int rc;
+  
+  rc = pthread_mutexattr_init(&attr); 
+  assert (rc == 0);
+  
+  (void) pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+  
+  rc = pthread_mutex_init ( mutex, &attr);
+  assert (rc == 0);
+  
+  (void)pthread_mutexattr_destroy(&attr);
+}
+
 void qmckl_lock(qmckl_context context) {
   if (context == QMCKL_NULL_CONTEXT)
-    return void;
+    return ;
   qmckl_context_struct *ctx = (qmckl_context_struct*) context;
+  errno = 0;
   int rc = pthread_mutex_lock( &(ctx->mutex) );
+  if (rc != 0) {
+    fprintf(stderr, "qmckl_lock:%s\n", strerror(rc) );
+    fflush(stderr);
+  }
   assert (rc == 0);
+  ctx->lock_count++;
+/*
+  printf("  lock : %d\n", ctx->lock_count);
+*/
 }
 
 void qmckl_unlock(qmckl_context context) {
   qmckl_context_struct *ctx = (qmckl_context_struct*) context;
   int rc = pthread_mutex_unlock( &(ctx->mutex) );
+  if (rc != 0) {
+    fprintf(stderr, "qmckl_unlock:%s\n", strerror(rc) );
+    fflush(stderr);
+  }
   assert (rc == 0);
+  ctx->lock_count--;
+/*
+  printf("unlock : %d\n", ctx->lock_count);
+*/
 }
 \end{minted}
 
@@ -174,7 +215,7 @@ void qmckl_unlock(qmckl_context context) {
 \label{sec:org38bfb02}
 
 \texttt{qmckl\_context\_copy} makes a shallow copy of a context. It returns
-\texttt{QMCKL\_NULL\_CONTEXT} upon failure
+\texttt{QMCKL\_NULL\_CONTEXT} upon failure.
 
 \begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
 qmckl_context qmckl_context_copy(const qmckl_context context) {
@@ -201,13 +242,14 @@ qmckl_context qmckl_context_copy(const qmckl_context context) {
   }
 
   /* Copy the old context on the new one */
-  memcpy(new_ctx, old_ctx, sizeof(qmckl_context_stuct));
+  memcpy(new_ctx, old_ctx, sizeof(qmckl_context_struct));
 
-  qmckl_unlock(context);
-  
   new_ctx->prev = old_ctx;
 
-  return (qmckl_context) new_context;
+  qmckl_unlock( (qmckl_context) new_ctx );
+  qmckl_unlock( (qmckl_context) old_ctx );
+  
+  return (qmckl_context) new_ctx;
 }
 
 \end{minted}
@@ -220,52 +262,44 @@ It frees the context, and returns the previous context.
 \begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
 qmckl_context qmckl_context_destroy(const qmckl_context context) {
 
-  qmckl_lock(context);
-  
   const qmckl_context checked_context = qmckl_context_check(context);
   if (checked_context == QMCKL_NULL_CONTEXT) return QMCKL_NULL_CONTEXT;
 
+  qmckl_lock(context);
+  
   qmckl_context_struct* ctx = (qmckl_context_struct*) context;
   assert (ctx != NULL);  /* Shouldn't be true because the context is valid */
 
-  const qmckl_context prev_context = (qmckl_context) ctx->prev;
-  memset(ctx, NULL, sizeof(qmckl_context_struct));
-  ctx->tag = INVALID_TAG;
-
-  const qmckl_exit_code rc = qmckl_free(context,ctx);
-  assert (rc == QMCKL_SUCCESS);
-
-  if (prev_context == QMCKL_NULL_CONTEXT) {
-    /* This is the first context, free all memory. */
-    while (ctx->alloc != NULL) {
-       free(ctx->alloc->pointer);
-       ctx->alloc = ctx->alloc->prev;
-    }
-    int rc = pthread_mutex_destroy( &(ctx->mutex) );
-    assert (rc == 0);
-  }
-  
   qmckl_unlock(context);
 
-  return prev_context;
-}
-\end{minted}
-\subsubsection{Access to the previous context}
-\label{sec:orgaff8db0}
+  const qmckl_context prev_context = (qmckl_context) ctx->prev;
+  if (prev_context == QMCKL_NULL_CONTEXT) {
+    /* This is the first context, free all memory. */
+    struct qmckl_memory_struct* new = NULL;
+    while (ctx->alloc != NULL) {
+       new = ctx->alloc->next;
+       free(ctx->alloc->pointer);
+       ctx->alloc->pointer = NULL;
+       free(ctx->alloc);
+       ctx->alloc = new;
+    }
+  }
+  
+  qmckl_exit_code rc;
+  rc = qmckl_context_remove_memory(context,ctx);
 
-\texttt{qmckl\_context\_previous} returns the previous context. It returns
-\texttt{QMCKL\_NULL\_CONTEXT} for the initial context and for the NULL context.
+  ctx->tag = INVALID_TAG;
 
-\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
-qmckl_context qmckl_context_previous(const qmckl_context context) {
-
-  const qmckl_context checked_context = qmckl_context_check(context);
-  if (checked_context == (qmckl_context) 0) {
-    return (qmckl_context) 0;
+  const int rc_destroy = pthread_mutex_destroy( &(ctx->mutex) );
+  if (rc_destroy != 0) {
+     fprintf(stderr, "qmckl_context_destroy: %s (count = %d)\n", strerror(rc_destroy), ctx->lock_count);
+     abort();
   }
 
-  const qmckl_context_struct* ctx = (qmckl_context_struct*) checked_context;
-  return qmckl_context_check((qmckl_context) ctx->prev);
+  rc = qmckl_free(context,ctx);
+  assert (rc == QMCKL_SUCCESS);
+
+  return prev_context;
 }
 \end{minted}
 \subsection{Memory allocation handling}
@@ -280,7 +314,7 @@ computation of the amount of currently used memory by the library.
 
 \begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
 typedef struct qmckl_memory_struct {
-  struct qmckl_memory_struct * prev    ;
+  struct qmckl_memory_struct * next    ;
   void                       * pointer ;
   size_t                       size    ;
 } qmckl_memory_struct;
@@ -297,7 +331,7 @@ immediately with \texttt{QMCKL\_SUCCESS}.
 
 \begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
 qmckl_exit_code qmckl_context_append_memory(qmckl_context context,
-                                            const void* pointer,
+                                            void* pointer,
                                             const size_t size) {
   assert (pointer != NULL);
   assert (size > 0L);
@@ -311,17 +345,27 @@ qmckl_exit_code qmckl_context_append_memory(qmckl_context context,
 
   qmckl_context_struct* ctx = (qmckl_context_struct*) context; 
 
-  alloc = (qmckl_memory_struct*) malloc(sizeof(qmckl_memory_struct));
-  if (alloc == NULL) {
+  qmckl_memory_struct* new_alloc = (qmckl_memory_struct*)
+    malloc(sizeof(qmckl_memory_struct));
+
+  if (new_alloc == NULL) {
     qmckl_unlock(context);
     return QMCKL_ALLOCATION_FAILED;
   }
   
-  alloc->prev    = ctx->alloc;
-  alloc->pointer = pointer;
-  alloc->size    = size;
+  new_alloc->next    = NULL;
+  new_alloc->pointer = pointer;
+  new_alloc->size    = size;
 
-  ctx->alloc = alloc;
+  qmckl_memory_struct* alloc = ctx->alloc;
+  if (alloc == NULL) {
+    ctx->alloc = new_alloc;
+  } else {
+    while (alloc != NULL) {
+      alloc = alloc->next;
+    }
+    alloc->next = new_alloc;
+  }
     
   qmckl_unlock(context);
 
@@ -353,35 +397,26 @@ qmckl_exit_code qmckl_context_remove_memory(qmckl_context context,
 
   qmckl_context_struct* ctx = (qmckl_context_struct*) context; 
 
-  qmckl_memory_struct* alloc;
-  qmckl_memory_struct* next;
+  qmckl_memory_struct* alloc = ctx->alloc;
+  qmckl_memory_struct* prev  = ctx->alloc;
 
-  if (ctx->alloc->pointer == pointer) {
-
-    alloc = ctx->alloc->prev;
-    free(ctx->alloc);
-    ctx->alloc = alloc;
-
-  } else {
-
-    next  = ctx->alloc;
-    alloc = next->prev;
-
-    while (alloc != NULL) {
-      if (alloc->pointer == pointer) {
-        next->prev = alloc->prev;
-        free(alloc);
-        alloc = NULL;
-      } else {
-        next = alloc;
-        alloc = alloc->prev;
-      }
-    }
+  while ( (alloc != NULL) && (alloc->pointer != pointer) ) {
+    prev = alloc;
+    alloc = alloc->next;
   }
+  
+  if (alloc != NULL) {
+    prev->next = alloc->next;
+    free(alloc);
+  } 
       
   qmckl_unlock(context);
 
-  return QMCKL_SUCCESS;
+  if (alloc != NULL) {
+    return QMCKL_SUCCESS;
+  } else {
+    return QMCKL_DEALLOCATION_FAILED;
+  }
 }
 \end{minted}
 
@@ -446,7 +481,7 @@ qmckl_context_update_error(qmckl_context context,
   qmckl_error_struct* error =
     (qmckl_error_struct*) qmckl_malloc (context, sizeof(qmckl_error_struct));
   error->exit_code = exit_code;
-  strcpy(error->function, function);
+  strcpy(error->function, function_name);
   strcpy(error->message, message);
 
   ctx->error = error;
@@ -487,7 +522,7 @@ qmckl_context_set_error(qmckl_context context,
 
   if (qmckl_context_update_error(new_context,
                                  exit_code,
-                                 function,
+                                 function_name,
                                  message) != QMCKL_SUCCESS) {
     return context;
   }
@@ -539,3 +574,274 @@ if (x < 0) {
  }
 \end{minted}
 
+\subsection{Control of the numerical precision}
+\label{sec:org7e9d10b}
+
+Controlling numerical precision enables optimizations. Here, the                                                             
+default parameters determining the target numerical precision and                                                            
+range are defined.                                                                                                           
+
+\begin{table}[htbp]
+\label{tab:orga45f0a8}
+\centering
+\begin{tabular}{lr}
+\texttt{QMCKL\_DEFAULT\_PRECISION} & 53\\
+\texttt{QMCKL\_DEFAULT\_RANGE} & 11\\
+\end{tabular}
+\end{table}
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{python}
+""" This script generates the C and Fortran constants from the org-mode table.
+"""
+
+result = [ "#+begin_src c :comments org :tangle (eval h)" ]
+for (text, code) in table:
+    text=text.replace("~","")
+    result += [ f"#define  {text:30s} {code:d}" ]
+result += [ "#+end_src" ]
+
+result += [ "" ]
+
+result += [ "#+begin_src f90 :comments org :tangle (eval fh) :exports none" ]
+for (text, code) in table:
+    text=text.replace("~","")
+    result += [ f"   integer, parameter :: {text:30s} = {code:d}" ]
+result += [ "#+end_src" ]
+
+return '\n'.join(result)
+
+\end{minted}
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+typedef struct qmckl_precision_struct {
+  int  precision;
+  int  range;
+} qmckl_precision_struct;
+\end{minted}
+
+The following functions set and get the required precision and
+range. \texttt{precision} is an integer between 2 and 53, and \texttt{range} is an
+integer between 2 and 11.
+
+The setter functions functions return a new context as a 64-bit
+integer. The getter functions return the value, as a 32-bit
+integer. The update functions return \texttt{QMCKL\_SUCCESS} or
+\texttt{QMCKL\_FAILURE}.
+
+\subsubsection{Precision}
+\label{sec:org6cf253c}
+\texttt{qmckl\_context\_update\_precision} modifies the parameter for the
+numerical precision in a context. If the context doesn't have any
+precision set yet, the default values are used.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+qmckl_exit_code qmckl_context_update_precision(const qmckl_context context, const int precision) {
+
+  if (qmckl_context_check(context) == QMCKL_NULL_CONTEXT)
+    return QMCKL_INVALID_CONTEXT;
+
+  if (precision <  2) {
+    return qmckl_failwith(context,
+                          QMCKL_INVALID_ARG_2,
+                          "qmckl_context_update_precision",
+                          "precision < 2");
+  }
+
+  if (precision > 53) {
+    return qmckl_failwith(context,
+                          QMCKL_INVALID_ARG_2,
+                          "qmckl_context_update_precision",
+                          "precision > 53");
+  }
+
+  qmckl_context_struct* ctx = (qmckl_context_struct*) context;
+
+  /* This should be always true */
+  assert (ctx != NULL);
+
+  qmckl_lock(context);
+
+  if (ctx->fp == NULL) {
+
+    ctx->fp = (qmckl_precision_struct*)
+      qmckl_malloc(context, sizeof(qmckl_precision_struct));
+
+    if (ctx->fp == NULL) {
+      return qmckl_failwith(context,
+                            QMCKL_ALLOCATION_FAILED,
+                            "qmckl_context_update_precision",
+                            "ctx->fp");
+    }
+
+    ctx->fp->precision = QMCKL_DEFAULT_PRECISION;
+    ctx->fp->range     = QMCKL_DEFAULT_RANGE;
+  }
+
+  ctx->fp->precision = precision;
+
+  qmckl_unlock(context);
+
+  return QMCKL_SUCCESS;
+}
+\end{minted}
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{fortran}
+  interface
+     integer (c_int32_t) function qmckl_context_update_precision(context, precision) bind(C)
+       use, intrinsic :: iso_c_binding
+       integer (c_int64_t), intent(in), value :: context
+       integer (c_int32_t), intent(in), value :: precision
+     end function qmckl_context_update_precision
+  end interface
+\end{minted}
+
+\texttt{qmckl\_context\_set\_precision} returns a copy of the context with a
+different precision parameter.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+qmckl_context qmckl_context_set_precision(const qmckl_context context, const int precision) {
+  qmckl_context new_context = qmckl_context_copy(context);
+  if (new_context == 0) return 0;
+
+  if (qmckl_context_update_precision(new_context, precision) == QMCKL_FAILURE) return 0;
+
+  return new_context;
+}
+\end{minted}
+
+\texttt{qmckl\_context\_get\_precision} returns the value of the numerical precision in the context.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+int qmckl_context_get_precision(const qmckl_context context) {
+  if (qmckl_context_check(context) == QMCKL_NULL_CONTEXT) {
+      return qmckl_failwith(context,
+                      QMCKL_INVALID_CONTEXT,
+                      "qmckl_context_get_precision",
+                      "");
+  }
+
+  const qmckl_context_struct* ctx = (qmckl_context_struct*) context;
+  if (ctx->fp != NULL) 
+    return ctx->fp->precision;
+  else
+    return QMCKL_DEFAULT_PRECISION;
+}
+\end{minted}
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{fortran}
+  interface
+     integer (c_int32_t) function qmckl_context_get_precision(context) bind(C)
+       use, intrinsic :: iso_c_binding
+       integer (c_int64_t), intent(in), value :: context
+     end function qmckl_context_get_precision
+  end interface
+\end{minted}
+
+\subsection{Range}
+\label{sec:org014eb35}
+
+\texttt{qmckl\_context\_update\_range} modifies the parameter for the numerical range in a given context.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+qmckl_exit_code qmckl_context_update_range(const qmckl_context context, const int range) {
+
+  if (qmckl_context_check(context) == QMCKL_NULL_CONTEXT)
+    return QMCKL_INVALID_CONTEXT;
+
+  if (range <  2) {
+    return qmckl_failwith(context,
+                    QMCKL_INVALID_ARG_2,
+                    "qmckl_context_update_range",
+                    "range < 2");
+  }
+
+  if (range > 11) {
+    return qmckl_failwith(context,
+                    QMCKL_INVALID_ARG_2,
+                    "qmckl_context_update_range",
+                    "range > 11");
+  }
+
+  qmckl_context_struct* ctx = (qmckl_context_struct*) context;
+
+  /* This should be always true */
+  assert (ctx != NULL);
+
+  qmckl_lock(context);
+
+  if (ctx->fp == NULL) {
+
+    ctx->fp = (qmckl_precision_struct*)
+      qmckl_malloc(context, sizeof(qmckl_precision_struct));
+
+    if (ctx->fp == NULL) {
+      return qmckl_failwith(context,
+                      QMCKL_ALLOCATION_FAILED,
+                      "qmckl_context_update_range",
+                      "ctx->fp");
+    }
+
+    ctx->fp->precision = QMCKL_DEFAULT_PRECISION;
+    ctx->fp->range     = QMCKL_DEFAULT_RANGE;
+  }
+
+  ctx->fp->range = range;
+
+  qmckl_unlock(context);
+
+  return QMCKL_SUCCESS;
+}
+\end{minted}
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{fortran}
+  interface
+     integer (c_int32_t) function qmckl_context_update_range(context, range) bind(C)
+       use, intrinsic :: iso_c_binding
+       integer (c_int64_t), intent(in), value :: context
+       integer (c_int32_t), intent(in), value :: range
+     end function qmckl_context_update_range
+  end interface
+\end{minted}
+
+\texttt{qmckl\_context\_set\_range} returns a copy of the context with a different precision parameter.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+qmckl_context qmckl_context_set_range(const qmckl_context context, const int range) {
+  qmckl_context new_context = qmckl_context_copy(context);
+  if (new_context == 0) return 0;
+
+  if (qmckl_context_update_range(new_context, range) == QMCKL_FAILURE) return 0;
+
+  return new_context;
+}
+\end{minted}
+
+\texttt{qmckl\_context\_get\_range} returns the value of the numerical range in the context.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+int qmckl_context_get_range(const qmckl_context context) {
+  if (qmckl_context_check(context) == QMCKL_NULL_CONTEXT) {
+      return qmckl_failwith(context,
+                      QMCKL_INVALID_CONTEXT,
+                      "qmckl_context_get_range",
+                      "");
+  }
+
+  const qmckl_context_struct* ctx = (qmckl_context_struct*) context;
+  if (ctx->fp != NULL) 
+    return ctx->fp->range;
+  else
+    return QMCKL_DEFAULT_RANGE;
+}
+\end{minted}
+\subsection{Helper functions}
+\label{sec:org953484b}
+
+\texttt{qmckl\_context\_get\_epsilon} returns \(\epsilon = 2^{1-n}\) where \texttt{n} is the precision.
+
+\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
+double qmckl_context_get_epsilon(const qmckl_context context) {
+  const int precision = qmckl_context_get_precision(context);
+  return 1. /  (double) (1L << (precision-1));
+}
+\end{minted}
