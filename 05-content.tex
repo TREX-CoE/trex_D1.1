@@ -61,24 +61,28 @@ languages can be used in the same notebook.
 
 \subsection{Algorithms}
 
-Reducing the scaling of an algorithm usually implies also reducing its
-arithmetic complexity (number of flops per byte). For small
-sizes, \(\mathcal{O}(N^3)\) and \(\mathcal{O}(N^2)\) algorithms are
-often better adapted than linear scaling algorithms. Indeed, the
-reduction of the number of flops does not necessarily compensate the
-high efficiency of BLAS3 implementations.
-As \ac{QMCkl} is a general purpose library, multiple algorithms will
-be implemented adapted to different ranges of sizes.
+Some users will run calculations using as a trial wave function a
+single determinant with thousands of electrons, and some other users
+will run calculations with a small number of electrons but with millions
+of Slater detrminants. These two different profiles impose that the
+library has to be efficient both in the regime of small and large numbers
+of electrons. When the number of electrons is large, interactions
+become local and linear-scaling algorithms can be introduced. However,
+such algorithms become inefficient for small sizes.  Hence, to
+satisfy these two regimes, multiple algorithms will be implemented to
+achieve the same task, and the library will decide at run time which
+algorithm should use to minimize the time to solution.
+
 
 \subsection{Dependencies}
 
-Dependencies are critical: if a user is not able to install the
-required dependencies, the user is not going to be able to use our
-library. So the list of
-external dependencies should be kept as small as possible. 
-External libraries should be used \emph{only} if their use is
-strongly justified, and if we are sure that the users will be able to
-have access to them.
+Dependencies in other software components is a critical point that
+should be considered seriously. If a user is not able to install the
+required external libraries and tools, the user is not going to be
+able to use our library. So the list of external dependencies should
+be kept as small as possible.  External libraries should be used
+\emph{only} if their use is strongly justified, and if we are sure
+that the users will be able to have access to them.
 
 The dependencies needed to use pre-compiled versions of the library
 are \ac{BLAS} and \ac{LAPACK}.
@@ -139,7 +143,7 @@ which we can cite x86 based processors and \ac{GPU} accelerators.
 Nowadays, there exists very efficient and popular software tools to
 take advantage of low-level features of the processor\cite{pohl_2016}
 (vectorization intrinsics) and of \acp{GPU} accelerators (SYCL\cite{SYCL},
-OneAPI, Kokkos\cite{kokkos}) for {\CC} developers. So it is very likely
+OneAPI, HIP) for {\CC} developers. So it is very likely
 that some optimized implementations will be written in {\CC}, and this
 is agreement with our choice to make the \ac{API} C-compatible.
 
@@ -156,10 +160,12 @@ interface files end with \mintinline{shell}{_fh.f90}.
 The names of the functions defined in Fortran should be the
 same as those exposed in the \ac{API} suffixed by \mintinline{shell}{_f}.
 
-When the library is built, a single shared library is produced
-(\mintinline{shell}{libqmckl.so}). All the function prototypes are given in a single C
-header file \mintinline{shell}{qmckl.h}, and a Fortran interface to the library
-is provided via a module containing only interfaces to the C functions
+When the library is built, a single static
+(\mintinline{shell}{libqmckl.a}) or shared
+(\mintinline{shell}{libqmckl.so}) library is produced. All the
+function prototypes are given in a single C header file
+\mintinline{shell}{qmckl.h}, and a Fortran interface to the library is
+provided via a module containing only interfaces to the C functions
 (\mintinline{shell}{qmckl_f.f90}).
 
 \subsection{License}
@@ -234,7 +240,10 @@ To solve this  problem we propose to use a pointer
 to a {\context}  variable,  built   by  the  library   with  the
 \mintinline{C}{qmckl_context_create} function. The
 {\context} contains the global state of the library, and is used as
-the first argument of most \ac{QMCkl} functions.
+the first argument of most \ac{QMCkl} functions. Thread safety is 
+implemented in critical functions of the context with a
+\texttt{pthreads} lock, to provide a simple and general locking
+mechanism.
 
 The internal structure of the {\context}  is not specified, to give a
 maximum of  freedom to  the different  implementations.  Modifying
@@ -454,7 +463,10 @@ figure~\ref{fig:speedup}, and reaches a factor of $19\times$ for the
 largest system sizes. Performance analyzis of the mini-application
 showed that at this stage we have reached 80\% of the single core peak
 performance of the CPU core for this kernel. Profiling with MAQAO
-confirmed a the high quality of the code produced by our mini-application.
+confirmed the high quality of the code produced by our mini-application:
+high array access efficiency, high arithmetic intensity, efficient
+vectorization, and a large part of the time spent in the BLAS matrix
+multiplication routines.
 
 The same strategy of kernel extraction of the codes and rewriting
 will be applied to all other possible computational bottlenecks of QMC
@@ -472,7 +484,7 @@ the library which is automatically generated from the {\orgmode}
 files, in the current status. The rest of the documentation can be
 found on the web site of the library\footnote{\url{https://trex-coe.github.io/qmckl}}.
 Please, keep in mind that the library is still at an early development
-stage. In the first six months, most of the effort was made on
+stage. In the first six months, most of the efforts focused on
 preparing solid bases for the development of
 the library, more related to system programming than scientific
 programming (the context variable, memory allocation, conventions,

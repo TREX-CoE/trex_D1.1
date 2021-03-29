@@ -576,9 +576,12 @@ if (x < 0) {
 \subsection{Control of the numerical precision}
 \label{sec:org7e9d10b}
 
-Controlling numerical precision enables optimizations. Here, the                                                             
-default parameters determining the target numerical precision and                                                            
-range are defined.                                                                                                           
+Controlling numerical precision enables optimizations. Here, the
+default parameters determining the target numerical precision and
+range are defined. Following the IEEE Standard for Floating-Point
+Arithmetic (IEEE 754),
+\emph{precision} refers to the number of significand bits and \emph{range}
+refers to the number of exponent bits.
 
 \begin{table}[htbp]
 \label{tab:orga45f0a8}
@@ -590,28 +593,6 @@ range are defined.
 \end{table}
 
 \begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{python}
-""" This script generates the C and Fortran constants from the org-mode table.
-"""
-
-result = [ "#+begin_src c :comments org :tangle (eval h)" ]
-for (text, code) in table:
-    text=text.replace("~","")
-    result += [ f"#define  {text:30s} {code:d}" ]
-result += [ "#+end_src" ]
-
-result += [ "" ]
-
-result += [ "#+begin_src f90 :comments org :tangle (eval fh) :exports none" ]
-for (text, code) in table:
-    text=text.replace("~","")
-    result += [ f"   integer, parameter :: {text:30s} = {code:d}" ]
-result += [ "#+end_src" ]
-
-return '\n'.join(result)
-
-\end{minted}
-
-\begin{minted}[frame=lines,fontsize=\scriptsize,linenos]{c}
 typedef struct qmckl_precision_struct {
   int  precision;
   int  range;
